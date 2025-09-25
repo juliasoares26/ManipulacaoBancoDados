@@ -1,0 +1,1802 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.57">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Seu Nome">
+<meta name="dcterms.date" content="2025-09-24">
+
+<title>Carregamento Rápido de Dados do Kaggle - Netflix Dataset</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="Desafio03 (1)_files/libs/clipboard/clipboard.min.js"></script>
+<script src="Desafio03 (1)_files/libs/quarto-html/quarto.js"></script>
+<script src="Desafio03 (1)_files/libs/quarto-html/popper.min.js"></script>
+<script src="Desafio03 (1)_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="Desafio03 (1)_files/libs/quarto-html/anchor.min.js"></script>
+<link href="Desafio03 (1)_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="Desafio03 (1)_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="Desafio03 (1)_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="Desafio03 (1)_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="Desafio03 (1)_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#introdução" id="toc-introdução" class="nav-link active" data-scroll-target="#introdução">Introdução</a></li>
+  <li><a href="#configuração-inicial" id="toc-configuração-inicial" class="nav-link" data-scroll-target="#configuração-inicial">Configuração Inicial</a></li>
+  <li><a href="#obtendo-o-dataset-do-kaggle" id="toc-obtendo-o-dataset-do-kaggle" class="nav-link" data-scroll-target="#obtendo-o-dataset-do-kaggle">Obtendo o Dataset do Kaggle</a></li>
+  <li><a href="#preparação-dos-dados" id="toc-preparação-dos-dados" class="nav-link" data-scroll-target="#preparação-dos-dados">Preparação dos Dados</a>
+  <ul class="collapse">
+  <li><a href="#criando-agregações-temporais-para-tsibble" id="toc-criando-agregações-temporais-para-tsibble" class="nav-link" data-scroll-target="#criando-agregações-temporais-para-tsibble">Criando Agregações Temporais para Tsibble</a></li>
+  </ul></li>
+  <li><a href="#salvando-nos-formatos-parquet-e-json" id="toc-salvando-nos-formatos-parquet-e-json" class="nav-link" data-scroll-target="#salvando-nos-formatos-parquet-e-json">Salvando nos Formatos Parquet e JSON</a></li>
+  <li><a href="#carregamento-otimizado---parquet" id="toc-carregamento-otimizado---parquet" class="nav-link" data-scroll-target="#carregamento-otimizado---parquet">Carregamento Otimizado - Parquet</a></li>
+  <li><a href="#carregamento-otimizado---json" id="toc-carregamento-otimizado---json" class="nav-link" data-scroll-target="#carregamento-otimizado---json">Carregamento Otimizado - JSON</a></li>
+  <li><a href="#conversão-para-tsibble" id="toc-conversão-para-tsibble" class="nav-link" data-scroll-target="#conversão-para-tsibble">Conversão para Tsibble</a></li>
+  <li><a href="#análise-exploratória-dos-dados" id="toc-análise-exploratória-dos-dados" class="nav-link" data-scroll-target="#análise-exploratória-dos-dados">Análise Exploratória dos Dados</a></li>
+  <li><a href="#comparação-de-performance" id="toc-comparação-de-performance" class="nav-link" data-scroll-target="#comparação-de-performance">Comparação de Performance</a></li>
+  <li><a href="#funções-reutilizáveis-otimizadas" id="toc-funções-reutilizáveis-otimizadas" class="nav-link" data-scroll-target="#funções-reutilizáveis-otimizadas">Funções Reutilizáveis Otimizadas</a></li>
+  <li><a href="#testando-as-funções" id="toc-testando-as-funções" class="nav-link" data-scroll-target="#testando-as-funções">Testando as Funções</a></li>
+  <li><a href="#insights-do-dataset-netflix" id="toc-insights-do-dataset-netflix" class="nav-link" data-scroll-target="#insights-do-dataset-netflix">Insights do Dataset Netflix</a></li>
+  <li><a href="#conclusões" id="toc-conclusões" class="nav-link" data-scroll-target="#conclusões">Conclusões</a>
+  <ul class="collapse">
+  <li><a href="#principais-descobertas" id="toc-principais-descobertas" class="nav-link" data-scroll-target="#principais-descobertas">Principais Descobertas:</a></li>
+  <li><a href="#recomendações" id="toc-recomendações" class="nav-link" data-scroll-target="#recomendações">Recomendações:</a></li>
+  </ul></li>
+  <li><a href="#informações-da-sessão" id="toc-informações-da-sessão" class="nav-link" data-scroll-target="#informações-da-sessão">Informações da Sessão</a></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<div class="quarto-title-block"><div><h1 class="title">Carregamento Rápido de Dados do Kaggle - Netflix Dataset</h1><button type="button" class="btn code-tools-button" id="quarto-code-tools-source"><i class="bi"></i> Code</button></div></div>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    <div>
+    <div class="quarto-title-meta-heading">Author</div>
+    <div class="quarto-title-meta-contents">
+             <p>Seu Nome </p>
+          </div>
+  </div>
+    
+    <div>
+    <div class="quarto-title-meta-heading">Published</div>
+    <div class="quarto-title-meta-contents">
+      <p class="date">September 24, 2025</p>
+    </div>
+  </div>
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="introdução" class="level2">
+<h2 class="anchored" data-anchor-id="introdução">Introdução</h2>
+<p>Este documento demonstra como carregar o famoso <strong>Netflix Movies and TV Shows Dataset</strong> do Kaggle de forma otimizada, convertendo-o em data frames e tsibbles para análise de dados temporais.</p>
+<p><strong>Dataset</strong>: Netflix Movies and TV Shows do Kaggle - “Listings of movies and tv shows on Netflix - Regularly Updated”</p>
+</section>
+<section id="configuração-inicial" class="level2">
+<h2 class="anchored" data-anchor-id="configuração-inicial">Configuração Inicial</h2>
+<p>Primeiro, vamos carregar as bibliotecas necessárias:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(arrow)      </span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(jsonlite)  </span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(data.table) </span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tsibble)    </span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(lubridate)  </span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dplyr)      </span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(readr)      </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="obtendo-o-dataset-do-kaggle" class="level2">
+<h2 class="anchored" data-anchor-id="obtendo-o-dataset-do-kaggle">Obtendo o Dataset do Kaggle</h2>
+<p>O arquivo <code>netflix_titles.csv</code> está na pasta Downloads e será carregado diretamente.</p>
+<p><strong>Dataset utilizado</strong>: Netflix Movies and TV Shows do Kaggle - URL: https://www.kaggle.com/datasets/shivamb/netflix-shows - Arquivo: <code>netflix_titles.csv</code> (na pasta Downloads)</p>
+</section>
+<section id="preparação-dos-dados" class="level2">
+<h2 class="anchored" data-anchor-id="preparação-dos-dados">Preparação dos Dados</h2>
+<p>Vamos carregar o arquivo CSV da pasta Downloads e prepará-lo para conversão nos formatos Parquet e JSON:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>downloads_path <span class="ot">&lt;-</span> <span class="fu">file.path</span>(<span class="fu">Sys.getenv</span>(<span class="st">"HOME"</span>), <span class="st">"Downloads"</span>, <span class="st">"netflix_titles.csv"</span>)</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (.Platform<span class="sc">$</span>OS.type <span class="sc">==</span> <span class="st">"windows"</span>) {</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  downloads_path <span class="ot">&lt;-</span> <span class="fu">file.path</span>(<span class="fu">Sys.getenv</span>(<span class="st">"USERPROFILE"</span>), <span class="st">"Downloads"</span>, <span class="st">"netflix_titles.csv"</span>)</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Procurando arquivo em:"</span>, downloads_path, <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Procurando arquivo em: C:\Users\julia/Downloads/netflix_titles.csv </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Verificar se o arquivo existe e carregar</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (<span class="fu">file.exists</span>(downloads_path)) {</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"Arquivo encontrado! Carregando dados do Netflix...</span><span class="sc">\n</span><span class="st">"</span>)</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Carregar dados reais do Netflix</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  netflix_data <span class="ot">&lt;-</span> <span class="fu">fread</span>(downloads_path)</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"Dados reais do Netflix carregados com sucesso!</span><span class="sc">\n</span><span class="st">"</span>)</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"Arquivo não encontrado em:"</span>, downloads_path, <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"Tentando caminhos alternativos...</span><span class="sc">\n</span><span class="st">"</span>)</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Tentar caminhos alternativos</span></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>  alternative_paths <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    <span class="st">"netflix_titles.csv"</span>,  <span class="co"># Pasta atual</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">file.path</span>(<span class="st">"Downloads"</span>, <span class="st">"netflix_titles.csv"</span>),  <span class="co"># Subpasta Downloads</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">file.path</span>(<span class="st">".."</span>, <span class="st">"Downloads"</span>, <span class="st">"netflix_titles.csv"</span>)  <span class="co"># Downloads na pasta pai</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>  file_found <span class="ot">&lt;-</span> <span class="cn">FALSE</span></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> (path <span class="cf">in</span> alternative_paths) {</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (<span class="fu">file.exists</span>(path)) {</span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>      <span class="fu">cat</span>(<span class="st">"Arquivo encontrado em:"</span>, path, <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>      netflix_data <span class="ot">&lt;-</span> <span class="fu">fread</span>(path)</span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>      file_found <span class="ot">&lt;-</span> <span class="cn">TRUE</span></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>      <span class="cf">break</span></span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="sc">!</span>file_found) {</span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>    <span class="fu">cat</span>(<span class="st">"Arquivo netflix_titles.csv não encontrado!</span><span class="sc">\n</span><span class="st">"</span>)</span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>    <span class="fu">cat</span>(<span class="st">"Por favor, certifique-se de que o arquivo está em uma dessas localizações:</span><span class="sc">\n</span><span class="st">"</span>)</span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>    <span class="fu">cat</span>(<span class="st">"   1. ~/Downloads/netflix_titles.csv</span><span class="sc">\n</span><span class="st">"</span>)</span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>    <span class="fu">cat</span>(<span class="st">"   2. ./netflix_titles.csv (pasta atual do projeto)</span><span class="sc">\n</span><span class="st">"</span>)</span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>    <span class="fu">cat</span>(<span class="st">"   3. ./Downloads/netflix_titles.csv</span><span class="sc">\n</span><span class="st">"</span>)</span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a>    <span class="fu">stop</span>(<span class="st">"Arquivo não encontrado. Por favor, verifique o caminho do arquivo."</span>)</span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Arquivo encontrado! Carregando dados do Netflix...
+Dados reais do Netflix carregados com sucesso!</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Mostrar informações básicas do dataset real</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Dataset Netflix carregado:</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Dataset Netflix carregado:</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"   - Dimensões:"</span>, <span class="fu">nrow</span>(netflix_data), <span class="st">"linhas x"</span>, <span class="fu">ncol</span>(netflix_data), <span class="st">"colunas</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>   - Dimensões: 8807 linhas x 12 colunas</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"   - Colunas:"</span>, <span class="fu">paste</span>(<span class="fu">names</span>(netflix_data), <span class="at">collapse =</span> <span class="st">", "</span>), <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>   - Colunas: show_id, type, title, director, cast, country, date_added, release_year, rating, duration, listed_in, description </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Limpar e preparar os dados</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Converter date_added para formato Date</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (<span class="st">"date_added"</span> <span class="sc">%in%</span> <span class="fu">names</span>(netflix_data)) {</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>  netflix_data[, date_added <span class="sc">:</span><span class="er">=</span> <span class="fu">mdy</span>(date_added)]  <span class="co"># Assuming MM/DD/YYYY format</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Garantir que release_year seja numérico</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (<span class="st">"release_year"</span> <span class="sc">%in%</span> <span class="fu">names</span>(netflix_data)) {</span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>  netflix_data[, release_year <span class="sc">:</span><span class="er">=</span> <span class="fu">as.numeric</span>(release_year)]</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Criar coluna year_month para agregações</span></span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>netflix_data[<span class="sc">!</span><span class="fu">is.na</span>(date_added), year_month <span class="sc">:</span><span class="er">=</span> <span class="fu">floor_date</span>(date_added, <span class="st">"month"</span>)]</span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Mostrar período dos dados</span></span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (<span class="st">"date_added"</span> <span class="sc">%in%</span> <span class="fu">names</span>(netflix_data) <span class="sc">&amp;&amp;</span> <span class="fu">sum</span>(<span class="sc">!</span><span class="fu">is.na</span>(netflix_data<span class="sc">$</span>date_added)) <span class="sc">&gt;</span> <span class="dv">0</span>) {</span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"Período dos dados:"</span>, <span class="fu">min</span>(netflix_data<span class="sc">$</span>date_added, <span class="at">na.rm =</span> <span class="cn">TRUE</span>), <span class="st">"a"</span>, </span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>      <span class="fu">max</span>(netflix_data<span class="sc">$</span>date_added, <span class="at">na.rm =</span> <span class="cn">TRUE</span>), <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Período dos dados: 13879 a 18895 </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Mostrar estrutura dos dados reais</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st"> Estrutura dos dados:</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+ Estrutura dos dados:</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="fu">str</span>(netflix_data)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Classes 'data.table' and 'data.frame':  8807 obs. of  13 variables:
+ $ show_id     : chr  "s1" "s2" "s3" "s4" ...
+ $ type        : chr  "Movie" "TV Show" "TV Show" "TV Show" ...
+ $ title       : chr  "Dick Johnson Is Dead" "Blood &amp; Water" "Ganglands" "Jailbirds New Orleans" ...
+ $ director    : chr  "Kirsten Johnson" "" "Julien Leclercq" "" ...
+ $ cast        : chr  "" "Ama Qamata, Khosi Ngema, Gail Mabalane, Thabang Molaba, Dillon Windvogel, Natasha Thahane, Arno Greeff, Xolile "| __truncated__ "Sami Bouajila, Tracy Gotoas, Samuel Jouy, Nabiha Akkari, Sofia Lesaffre, Salim Kechiouche, Noureddine Farihi, G"| __truncated__ "" ...
+ $ country     : chr  "United States" "South Africa" "" "" ...
+ $ date_added  : Date, format: "2021-09-25" "2021-09-24" ...
+ $ release_year: num  2020 2021 2021 2021 2021 ...
+ $ rating      : chr  "PG-13" "TV-MA" "TV-MA" "TV-MA" ...
+ $ duration    : chr  "90 min" "2 Seasons" "1 Season" "1 Season" ...
+ $ listed_in   : chr  "Documentaries" "International TV Shows, TV Dramas, TV Mysteries" "Crime TV Shows, International TV Shows, TV Action &amp; Adventure" "Docuseries, Reality TV" ...
+ $ description : chr  "As her father nears the end of his life, filmmaker Kirsten Johnson stages his death in inventive and comical wa"| __truncated__ "After crossing paths at a party, a Cape Town teen sets out to prove whether a private-school swimming star is h"| __truncated__ "To protect his family from a powerful drug lord, skilled thief Mehdi and his expert team of robbers are pulled "| __truncated__ "Feuds, flirtations and toilet talk go down among the incarcerated women at the Orleans Justice Center in New Or"| __truncated__ ...
+ $ year_month  : Date, format: "2021-09-01" "2021-09-01" ...
+ - attr(*, ".internal.selfref")=&lt;externalptr&gt; </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Mostrar primeiras linhas</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st"> Primeiras 5 linhas:</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+ Primeiras 5 linhas:</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(<span class="fu">head</span>(netflix_data, <span class="dv">5</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>   show_id    type                 title        director
+    &lt;char&gt;  &lt;char&gt;                &lt;char&gt;          &lt;char&gt;
+1:      s1   Movie  Dick Johnson Is Dead Kirsten Johnson
+2:      s2 TV Show         Blood &amp; Water                
+3:      s3 TV Show             Ganglands Julien Leclercq
+4:      s4 TV Show Jailbirds New Orleans                
+5:      s5 TV Show          Kota Factory                
+                                                                                                                                                                                                                                                                                                              cast
+                                                                                                                                                                                                                                                                                                            &lt;char&gt;
+1:                                                                                                                                                                                                                                                                                                                
+2: Ama Qamata, Khosi Ngema, Gail Mabalane, Thabang Molaba, Dillon Windvogel, Natasha Thahane, Arno Greeff, Xolile Tshabalala, Getmore Sithole, Cindy Mahlangu, Ryle De Morny, Greteli Fincham, Sello Maake Ka-Ncube, Odwa Gwanya, Mekaila Mathys, Sandi Schultz, Duane Williams, Shamilla Miller, Patrick Mofokeng
+3:                                                                                                                                                             Sami Bouajila, Tracy Gotoas, Samuel Jouy, Nabiha Akkari, Sofia Lesaffre, Salim Kechiouche, Noureddine Farihi, Geert Van Rampelberg, Bakary Diombera
+4:                                                                                                                                                                                                                                                                                                                
+5:                                                                                                                                                                                                        Mayur More, Jitendra Kumar, Ranjan Raj, Alam Khan, Ahsaas Channa, Revathi Pillai, Urvi Singh, Arun Kumar
+         country date_added release_year rating  duration
+          &lt;char&gt;     &lt;Date&gt;        &lt;num&gt; &lt;char&gt;    &lt;char&gt;
+1: United States 2021-09-25         2020  PG-13    90 min
+2:  South Africa 2021-09-24         2021  TV-MA 2 Seasons
+3:               2021-09-24         2021  TV-MA  1 Season
+4:               2021-09-24         2021  TV-MA  1 Season
+5:         India 2021-09-24         2021  TV-MA 2 Seasons
+                                                       listed_in
+                                                          &lt;char&gt;
+1:                                                 Documentaries
+2:               International TV Shows, TV Dramas, TV Mysteries
+3: Crime TV Shows, International TV Shows, TV Action &amp; Adventure
+4:                                        Docuseries, Reality TV
+5:        International TV Shows, Romantic TV Shows, TV Comedies
+                                                                                                                                                description
+                                                                                                                                                     &lt;char&gt;
+1: As her father nears the end of his life, filmmaker Kirsten Johnson stages his death in inventive and comical ways to help them both face the inevitable.
+2:      After crossing paths at a party, a Cape Town teen sets out to prove whether a private-school swimming star is her sister who was abducted at birth.
+3:       To protect his family from a powerful drug lord, skilled thief Mehdi and his expert team of robbers are pulled into a violent and deadly turf war.
+4:      Feuds, flirtations and toilet talk go down among the incarcerated women at the Orleans Justice Center in New Orleans on this gritty reality series.
+5: In a city of coaching centers known to train India’s finest collegiate minds, an earnest but unexceptional student and his friends navigate campus life.
+   year_month
+       &lt;Date&gt;
+1: 2021-09-01
+2: 2021-09-01
+3: 2021-09-01
+4: 2021-09-01
+5: 2021-09-01</code></pre>
+</div>
+</div>
+<section id="criando-agregações-temporais-para-tsibble" class="level3">
+<h3 class="anchored" data-anchor-id="criando-agregações-temporais-para-tsibble">Criando Agregações Temporais para Tsibble</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>netflix_monthly <span class="ot">&lt;-</span> netflix_data[<span class="sc">!</span><span class="fu">is.na</span>(date_added)] <span class="sc">%&gt;%</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(year_month, type) <span class="sc">%&gt;%</span></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">total_titles =</span> <span class="fu">n</span>(),</span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">avg_release_year =</span> <span class="fu">mean</span>(release_year, <span class="at">na.rm =</span> <span class="cn">TRUE</span>),</span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">unique_countries =</span> <span class="fu">n_distinct</span>(country, <span class="at">na.rm =</span> <span class="cn">TRUE</span>),</span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">.groups =</span> <span class="st">'drop'</span></span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span></span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">as.data.table</span>()</span>
+<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a>netflix_monthly[, id <span class="sc">:</span><span class="er">=</span> <span class="fu">paste</span>(year_month, type, <span class="at">sep =</span> <span class="st">"_"</span>)]</span>
+<span id="cb22-12"><a href="#cb22-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-13"><a href="#cb22-13" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"📈 Dados agregados por mês criados:"</span>, <span class="fu">nrow</span>(netflix_monthly), <span class="st">"registros</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>📈 Dados agregados por mês criados: 193 registros</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(netflix_monthly)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>   year_month    type total_titles avg_release_year unique_countries
+       &lt;Date&gt;  &lt;char&gt;        &lt;int&gt;            &lt;num&gt;            &lt;int&gt;
+1: 2008-01-01   Movie            1             2006                1
+2: 2008-02-01 TV Show            1             2007                1
+3: 2009-05-01   Movie            1             2007                1
+4: 2009-11-01   Movie            1             2009                1
+5: 2010-11-01   Movie            1             1987                1
+6: 2011-05-01   Movie            1             2010                1
+                   id
+               &lt;char&gt;
+1:   2008-01-01_Movie
+2: 2008-02-01_TV Show
+3:   2009-05-01_Movie
+4:   2009-11-01_Movie
+5:   2010-11-01_Movie
+6:   2011-05-01_Movie</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="salvando-nos-formatos-parquet-e-json" class="level2">
+<h2 class="anchored" data-anchor-id="salvando-nos-formatos-parquet-e-json">Salvando nos Formatos Parquet e JSON</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb26"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="fu">write_parquet</span>(netflix_data, <span class="st">"netflix_data.parquet"</span>)</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="fu">write_json</span>(netflix_data, <span class="st">"netflix_data.json"</span>)</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a><span class="fu">write_parquet</span>(netflix_monthly, <span class="st">"netflix_monthly.parquet"</span>)</span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a><span class="fu">write_json</span>(netflix_monthly, <span class="st">"netflix_monthly.json"</span>)</span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Arquivos salvos:</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Arquivos salvos:</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb28"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"   - netflix_data.parquet (dados completos)</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>   - netflix_data.parquet (dados completos)</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb30"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"   - netflix_data.json (dados completos)</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>   - netflix_data.json (dados completos)</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb32"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"   - netflix_monthly.parquet (dados agregados mensais)</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>   - netflix_monthly.parquet (dados agregados mensais)</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb34"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"   - netflix_monthly.json (dados agregados mensais)</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>   - netflix_monthly.json (dados agregados mensais)</code></pre>
+</div>
+</div>
+</section>
+<section id="carregamento-otimizado---parquet" class="level2">
+<h2 class="anchored" data-anchor-id="carregamento-otimizado---parquet">Carregamento Otimizado - Parquet</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb36"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Carregando arquivo Parquet (dados completos)...</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Carregando arquivo Parquet (dados completos)...</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb38"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a>tempo_parquet_full <span class="ot">&lt;-</span> <span class="fu">system.time</span>({</span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a>  df_netflix_parquet <span class="ot">&lt;-</span> <span class="fu">read_parquet</span>(<span class="st">"netflix_data.parquet"</span>)</span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a>})</span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a>tempo_parquet_monthly <span class="ot">&lt;-</span> <span class="fu">system.time</span>({</span>
+<span id="cb38-6"><a href="#cb38-6" aria-hidden="true" tabindex="-1"></a>  df_monthly_parquet <span class="ot">&lt;-</span> <span class="fu">read_parquet</span>(<span class="st">"netflix_monthly.parquet"</span>)</span>
+<span id="cb38-7"><a href="#cb38-7" aria-hidden="true" tabindex="-1"></a>})</span>
+<span id="cb38-8"><a href="#cb38-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-9"><a href="#cb38-9" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Tempo Parquet (completo):"</span>, tempo_parquet_full[<span class="dv">3</span>], <span class="st">"segundos</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Tempo Parquet (completo): 0.03 segundos</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb40"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Tempo Parquet (mensal):"</span>, tempo_parquet_monthly[<span class="dv">3</span>], <span class="st">"segundos</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Tempo Parquet (mensal): 0 segundos</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb42"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Dimensões (completo):"</span>, <span class="fu">nrow</span>(df_netflix_parquet), <span class="st">"x"</span>, <span class="fu">ncol</span>(df_netflix_parquet), <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Dimensões (completo): 8807 x 13 </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb44"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Dimensões (mensal):"</span>, <span class="fu">nrow</span>(df_monthly_parquet), <span class="st">"x"</span>, <span class="fu">ncol</span>(df_monthly_parquet), <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Dimensões (mensal): 193 x 6 </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb46"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(df_netflix_parquet[, .(title, type, date_added, release_year, country)])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>                   title    type date_added release_year       country
+                  &lt;char&gt;  &lt;char&gt;     &lt;Date&gt;        &lt;num&gt;        &lt;char&gt;
+1:  Dick Johnson Is Dead   Movie 2021-09-25         2020 United States
+2:         Blood &amp; Water TV Show 2021-09-24         2021  South Africa
+3:             Ganglands TV Show 2021-09-24         2021              
+4: Jailbirds New Orleans TV Show 2021-09-24         2021              
+5:          Kota Factory TV Show 2021-09-24         2021         India
+6:         Midnight Mass TV Show 2021-09-24         2021              </code></pre>
+</div>
+</div>
+</section>
+<section id="carregamento-otimizado---json" class="level2">
+<h2 class="anchored" data-anchor-id="carregamento-otimizado---json">Carregamento Otimizado - JSON</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb48"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Carregando arquivo JSON...</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Carregando arquivo JSON...</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb50"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a>tempo_json_full <span class="ot">&lt;-</span> <span class="fu">system.time</span>({</span>
+<span id="cb50-2"><a href="#cb50-2" aria-hidden="true" tabindex="-1"></a>  df_netflix_json <span class="ot">&lt;-</span> <span class="fu">fromJSON</span>(<span class="st">"netflix_data.json"</span>, <span class="at">flatten =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb50-3"><a href="#cb50-3" aria-hidden="true" tabindex="-1"></a>  df_netflix_json <span class="ot">&lt;-</span> <span class="fu">as.data.table</span>(df_netflix_json)</span>
+<span id="cb50-4"><a href="#cb50-4" aria-hidden="true" tabindex="-1"></a>  df_netflix_json[, date_added <span class="sc">:</span><span class="er">=</span> <span class="fu">as.Date</span>(date_added)]</span>
+<span id="cb50-5"><a href="#cb50-5" aria-hidden="true" tabindex="-1"></a>  df_netflix_json[, year_month <span class="sc">:</span><span class="er">=</span> <span class="fu">as.Date</span>(year_month)]</span>
+<span id="cb50-6"><a href="#cb50-6" aria-hidden="true" tabindex="-1"></a>})</span>
+<span id="cb50-7"><a href="#cb50-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb50-8"><a href="#cb50-8" aria-hidden="true" tabindex="-1"></a>tempo_json_monthly <span class="ot">&lt;-</span> <span class="fu">system.time</span>({</span>
+<span id="cb50-9"><a href="#cb50-9" aria-hidden="true" tabindex="-1"></a>  df_monthly_json <span class="ot">&lt;-</span> <span class="fu">fromJSON</span>(<span class="st">"netflix_monthly.json"</span>, <span class="at">flatten =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb50-10"><a href="#cb50-10" aria-hidden="true" tabindex="-1"></a>  df_monthly_json <span class="ot">&lt;-</span> <span class="fu">as.data.table</span>(df_monthly_json)</span>
+<span id="cb50-11"><a href="#cb50-11" aria-hidden="true" tabindex="-1"></a>  df_monthly_json[, year_month <span class="sc">:</span><span class="er">=</span> <span class="fu">as.Date</span>(year_month)]</span>
+<span id="cb50-12"><a href="#cb50-12" aria-hidden="true" tabindex="-1"></a>})</span>
+<span id="cb50-13"><a href="#cb50-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb50-14"><a href="#cb50-14" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Tempo JSON (completo):"</span>, tempo_json_full[<span class="dv">3</span>], <span class="st">"segundos</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Tempo JSON (completo): 0.49 segundos</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb52"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb52-1"><a href="#cb52-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Tempo JSON (mensal):"</span>, tempo_json_monthly[<span class="dv">3</span>], <span class="st">"segundos</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Tempo JSON (mensal): 0 segundos</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb54"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb54-1"><a href="#cb54-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Dimensões (completo):"</span>, <span class="fu">nrow</span>(df_netflix_json), <span class="st">"x"</span>, <span class="fu">ncol</span>(df_netflix_json), <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Dimensões (completo): 8807 x 13 </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb56"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb56-1"><a href="#cb56-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Dimensões (mensal):"</span>, <span class="fu">nrow</span>(df_monthly_json), <span class="st">"x"</span>, <span class="fu">ncol</span>(df_monthly_json), <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Dimensões (mensal): 193 x 6 </code></pre>
+</div>
+</div>
+</section>
+<section id="conversão-para-tsibble" class="level2">
+<h2 class="anchored" data-anchor-id="conversão-para-tsibble">Conversão para Tsibble</h2>
+<p>Para análise de séries temporais, usamos os dados agregados mensais:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb58"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb58-1"><a href="#cb58-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Convertendo dados mensais para tsibble...</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Convertendo dados mensais para tsibble...</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb60"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb60-1"><a href="#cb60-1" aria-hidden="true" tabindex="-1"></a>ts_netflix_parquet <span class="ot">&lt;-</span> df_monthly_parquet <span class="sc">%&gt;%</span></span>
+<span id="cb60-2"><a href="#cb60-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">as_tsibble</span>(<span class="at">key =</span> <span class="fu">c</span>(type), <span class="at">index =</span> year_month)</span>
+<span id="cb60-3"><a href="#cb60-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb60-4"><a href="#cb60-4" aria-hidden="true" tabindex="-1"></a>ts_netflix_json <span class="ot">&lt;-</span> df_monthly_json <span class="sc">%&gt;%</span></span>
+<span id="cb60-5"><a href="#cb60-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">as_tsibble</span>(<span class="at">key =</span> <span class="fu">c</span>(type), <span class="at">index =</span> year_month)</span>
+<span id="cb60-6"><a href="#cb60-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb60-7"><a href="#cb60-7" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Conversão para tsibble concluída!</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Conversão para tsibble concluída!</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb62"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb62-1"><a href="#cb62-1" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(<span class="st">"Tsibble Netflix (Parquet):"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] "Tsibble Netflix (Parquet):"</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb64"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb64-1"><a href="#cb64-1" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(ts_netflix_parquet)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tsibble: 193 x 6 [1D]
+# Key:       type [2]
+   year_month type  total_titles avg_release_year unique_countries id           
+   &lt;date&gt;     &lt;chr&gt;        &lt;int&gt;            &lt;dbl&gt;            &lt;int&gt; &lt;chr&gt;        
+ 1 2008-01-01 Movie            1            2006                 1 2008-01-01_M…
+ 2 2009-05-01 Movie            1            2007                 1 2009-05-01_M…
+ 3 2009-11-01 Movie            1            2009                 1 2009-11-01_M…
+ 4 2010-11-01 Movie            1            1987                 1 2010-11-01_M…
+ 5 2011-05-01 Movie            1            2010                 1 2011-05-01_M…
+ 6 2011-09-01 Movie            1            2000                 1 2011-09-01_M…
+ 7 2011-10-01 Movie           11            1989.                1 2011-10-01_M…
+ 8 2012-02-01 Movie            1            2011                 1 2012-02-01_M…
+ 9 2012-11-01 Movie            1            2012                 1 2012-11-01_M…
+10 2012-12-01 Movie            1            2010                 1 2012-12-01_M…
+# ℹ 183 more rows</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb66"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb66-1"><a href="#cb66-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st"> Tendências no Netflix:</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+ Tendências no Netflix:</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb68"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb68-1"><a href="#cb68-1" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(ts_netflix_parquet <span class="sc">%&gt;%</span> </span>
+<span id="cb68-2"><a href="#cb68-2" aria-hidden="true" tabindex="-1"></a>      <span class="fu">group_by</span>(type) <span class="sc">%&gt;%</span> </span>
+<span id="cb68-3"><a href="#cb68-3" aria-hidden="true" tabindex="-1"></a>      <span class="fu">summarise</span>(</span>
+<span id="cb68-4"><a href="#cb68-4" aria-hidden="true" tabindex="-1"></a>        <span class="at">total_titles =</span> <span class="fu">sum</span>(total_titles),</span>
+<span id="cb68-5"><a href="#cb68-5" aria-hidden="true" tabindex="-1"></a>        <span class="at">avg_monthly =</span> <span class="fu">mean</span>(total_titles),</span>
+<span id="cb68-6"><a href="#cb68-6" aria-hidden="true" tabindex="-1"></a>        <span class="at">max_monthly =</span> <span class="fu">max</span>(total_titles)</span>
+<span id="cb68-7"><a href="#cb68-7" aria-hidden="true" tabindex="-1"></a>      ))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tsibble: 193 x 5 [1D]
+# Key:       type [2]
+   type  year_month total_titles avg_monthly max_monthly
+   &lt;chr&gt; &lt;date&gt;            &lt;int&gt;       &lt;dbl&gt;       &lt;int&gt;
+ 1 Movie 2008-01-01            1           1           1
+ 2 Movie 2009-05-01            1           1           1
+ 3 Movie 2009-11-01            1           1           1
+ 4 Movie 2010-11-01            1           1           1
+ 5 Movie 2011-05-01            1           1           1
+ 6 Movie 2011-09-01            1           1           1
+ 7 Movie 2011-10-01           11          11          11
+ 8 Movie 2012-02-01            1           1           1
+ 9 Movie 2012-11-01            1           1           1
+10 Movie 2012-12-01            1           1           1
+# ℹ 183 more rows</code></pre>
+</div>
+</div>
+</section>
+<section id="análise-exploratória-dos-dados" class="level2">
+<h2 class="anchored" data-anchor-id="análise-exploratória-dos-dados">Análise Exploratória dos Dados</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb70"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb70-1"><a href="#cb70-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Análise por tipo de conteúdo</span></span>
+<span id="cb70-2"><a href="#cb70-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"ANÁLISE DO CONTEÚDO NETFLIX:</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>ANÁLISE DO CONTEÚDO NETFLIX:</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb72"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb72-1"><a href="#cb72-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"===============================</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>===============================</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb74"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb74-1"><a href="#cb74-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Distribuição por tipo</span></span>
+<span id="cb74-2"><a href="#cb74-2" aria-hidden="true" tabindex="-1"></a>table_type <span class="ot">&lt;-</span> <span class="fu">table</span>(df_netflix_parquet<span class="sc">$</span>type)</span>
+<span id="cb74-3"><a href="#cb74-3" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(<span class="st">"Distribuição por Tipo:"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] "Distribuição por Tipo:"</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb76"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb76-1"><a href="#cb76-1" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(table_type)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+  Movie TV Show 
+   6131    2676 </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb78"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb78-1"><a href="#cb78-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Top 5 países</span></span>
+<span id="cb78-2"><a href="#cb78-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st"> Top 5 Países (sem NA):</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+ Top 5 Países (sem NA):</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb80"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb80-1"><a href="#cb80-1" aria-hidden="true" tabindex="-1"></a>top_countries <span class="ot">&lt;-</span> df_netflix_parquet[<span class="sc">!</span><span class="fu">is.na</span>(country), .N, by <span class="ot">=</span> country][<span class="fu">order</span>(<span class="sc">-</span>N)][<span class="dv">1</span><span class="sc">:</span><span class="dv">5</span>]</span>
+<span id="cb80-2"><a href="#cb80-2" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(top_countries)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>          country     N
+           &lt;char&gt; &lt;int&gt;
+1:  United States  2818
+2:          India   972
+3:                  831
+4: United Kingdom   419
+5:          Japan   245</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb82"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb82-1"><a href="#cb82-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Análise temporal</span></span>
+<span id="cb82-2"><a href="#cb82-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st"> Adições por Ano:</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+ Adições por Ano:</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb84"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb84-1"><a href="#cb84-1" aria-hidden="true" tabindex="-1"></a>yearly_additions <span class="ot">&lt;-</span> df_netflix_parquet[<span class="sc">!</span><span class="fu">is.na</span>(date_added), </span>
+<span id="cb84-2"><a href="#cb84-2" aria-hidden="true" tabindex="-1"></a>                                      .(<span class="at">total =</span> .N), </span>
+<span id="cb84-3"><a href="#cb84-3" aria-hidden="true" tabindex="-1"></a>                                      by <span class="ot">=</span> .(<span class="at">year =</span> <span class="fu">year</span>(date_added))][<span class="fu">order</span>(year)]</span>
+<span id="cb84-4"><a href="#cb84-4" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(<span class="fu">tail</span>(yearly_additions, <span class="dv">8</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>    year total
+   &lt;num&gt; &lt;int&gt;
+1:  2014    24
+2:  2015    82
+3:  2016   429
+4:  2017  1188
+5:  2018  1649
+6:  2019  2016
+7:  2020  1879
+8:  2021  1498</code></pre>
+</div>
+</div>
+</section>
+<section id="comparação-de-performance" class="level2">
+<h2 class="anchored" data-anchor-id="comparação-de-performance">Comparação de Performance</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb86"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb86-1"><a href="#cb86-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">" COMPARAÇÃO DE PERFORMANCE:</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code> COMPARAÇÃO DE PERFORMANCE:</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb88"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb88-1"><a href="#cb88-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"==========================================</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>==========================================</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb90"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb90-1"><a href="#cb90-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Parquet (completo): "</span>, tempo_parquet_full[<span class="dv">3</span>], <span class="st">"segundos</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Parquet (completo):  0.03 segundos</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb92"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb92-1"><a href="#cb92-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"JSON (completo):    "</span>, tempo_json_full[<span class="dv">3</span>], <span class="st">"segundos</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>JSON (completo):     0.49 segundos</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb94"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb94-1"><a href="#cb94-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Parquet (mensal):   "</span>, tempo_parquet_monthly[<span class="dv">3</span>], <span class="st">"segundos</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Parquet (mensal):    0 segundos</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb96"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb96-1"><a href="#cb96-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"JSON (mensal):      "</span>, tempo_json_monthly[<span class="dv">3</span>], <span class="st">"segundos</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>JSON (mensal):       0 segundos</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb98"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb98-1"><a href="#cb98-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Calcular eficiência</span></span>
+<span id="cb98-2"><a href="#cb98-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (tempo_parquet_full[<span class="dv">3</span>] <span class="sc">&lt;</span> tempo_json_full[<span class="dv">3</span>]) {</span>
+<span id="cb98-3"><a href="#cb98-3" aria-hidden="true" tabindex="-1"></a>  speedup <span class="ot">&lt;-</span> <span class="fu">round</span>(tempo_json_full[<span class="dv">3</span>]<span class="sc">/</span>tempo_parquet_full[<span class="dv">3</span>], <span class="dv">2</span>)</span>
+<span id="cb98-4"><a href="#cb98-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">" Parquet foi"</span>, speedup, <span class="st">"x mais rápido que JSON!</span><span class="sc">\n</span><span class="st">"</span>)</span>
+<span id="cb98-5"><a href="#cb98-5" aria-hidden="true" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb98-6"><a href="#cb98-6" aria-hidden="true" tabindex="-1"></a>  speedup <span class="ot">&lt;-</span> <span class="fu">round</span>(tempo_parquet_full[<span class="dv">3</span>]<span class="sc">/</span>tempo_json_full[<span class="dv">3</span>], <span class="dv">2</span>)</span>
+<span id="cb98-7"><a href="#cb98-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">" JSON foi"</span>, speedup, <span class="st">"x mais rápido que Parquet!</span><span class="sc">\n</span><span class="st">"</span>)</span>
+<span id="cb98-8"><a href="#cb98-8" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code> Parquet foi 16.33 x mais rápido que JSON!</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb100"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb100-1"><a href="#cb100-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Tamanhos de arquivo</span></span>
+<span id="cb100-2"><a href="#cb100-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (<span class="fu">file.exists</span>(<span class="st">"netflix_data.parquet"</span>) <span class="sc">&amp;&amp;</span> <span class="fu">file.exists</span>(<span class="st">"netflix_data.json"</span>)) {</span>
+<span id="cb100-3"><a href="#cb100-3" aria-hidden="true" tabindex="-1"></a>  size_parquet <span class="ot">&lt;-</span> <span class="fu">file.size</span>(<span class="st">"netflix_data.parquet"</span>) <span class="sc">/</span> <span class="dv">1024</span> <span class="sc">/</span> <span class="dv">1024</span>  <span class="co"># MB</span></span>
+<span id="cb100-4"><a href="#cb100-4" aria-hidden="true" tabindex="-1"></a>  size_json <span class="ot">&lt;-</span> <span class="fu">file.size</span>(<span class="st">"netflix_data.json"</span>) <span class="sc">/</span> <span class="dv">1024</span> <span class="sc">/</span> <span class="dv">1024</span>        <span class="co"># MB</span></span>
+<span id="cb100-5"><a href="#cb100-5" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb100-6"><a href="#cb100-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st"> TAMANHOS DOS ARQUIVOS:</span><span class="sc">\n</span><span class="st">"</span>)</span>
+<span id="cb100-7"><a href="#cb100-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"Parquet:"</span>, <span class="fu">round</span>(size_parquet, <span class="dv">2</span>), <span class="st">"MB</span><span class="sc">\n</span><span class="st">"</span>)</span>
+<span id="cb100-8"><a href="#cb100-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"JSON:   "</span>, <span class="fu">round</span>(size_json, <span class="dv">2</span>), <span class="st">"MB</span><span class="sc">\n</span><span class="st">"</span>)</span>
+<span id="cb100-9"><a href="#cb100-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"Eficiência de espaço: Parquet é"</span>, <span class="fu">round</span>(size_json<span class="sc">/</span>size_parquet, <span class="dv">2</span>), <span class="st">"x menor</span><span class="sc">\n</span><span class="st">"</span>)</span>
+<span id="cb100-10"><a href="#cb100-10" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+ TAMANHOS DOS ARQUIVOS:
+Parquet: 1.92 MB
+JSON:    4.63 MB
+Eficiência de espaço: Parquet é 2.41 x menor</code></pre>
+</div>
+</div>
+</section>
+<section id="funções-reutilizáveis-otimizadas" class="level2">
+<h2 class="anchored" data-anchor-id="funções-reutilizáveis-otimizadas">Funções Reutilizáveis Otimizadas</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb102"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb102-1"><a href="#cb102-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Função otimizada para carregar Parquet</span></span>
+<span id="cb102-2"><a href="#cb102-2" aria-hidden="true" tabindex="-1"></a>carregar_parquet <span class="ot">&lt;-</span> <span class="cf">function</span>(arquivo, <span class="at">como_tsibble =</span> <span class="cn">FALSE</span>, <span class="at">key_col =</span> <span class="cn">NULL</span>, <span class="at">index_col =</span> <span class="cn">NULL</span>) {</span>
+<span id="cb102-3"><a href="#cb102-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">" Carregando"</span>, arquivo, <span class="st">"...</span><span class="sc">\n</span><span class="st">"</span>)</span>
+<span id="cb102-4"><a href="#cb102-4" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb102-5"><a href="#cb102-5" aria-hidden="true" tabindex="-1"></a>  tempo <span class="ot">&lt;-</span> <span class="fu">system.time</span>({</span>
+<span id="cb102-6"><a href="#cb102-6" aria-hidden="true" tabindex="-1"></a>    df <span class="ot">&lt;-</span> <span class="fu">read_parquet</span>(arquivo)</span>
+<span id="cb102-7"><a href="#cb102-7" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb102-8"><a href="#cb102-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (como_tsibble <span class="sc">&amp;&amp;</span> <span class="sc">!</span><span class="fu">is.null</span>(key_col) <span class="sc">&amp;&amp;</span> <span class="sc">!</span><span class="fu">is.null</span>(index_col)) {</span>
+<span id="cb102-9"><a href="#cb102-9" aria-hidden="true" tabindex="-1"></a>      df <span class="ot">&lt;-</span> <span class="fu">as_tsibble</span>(df, <span class="at">key =</span> <span class="fu">all_of</span>(key_col), <span class="at">index =</span> <span class="fu">all_of</span>(index_col))</span>
+<span id="cb102-10"><a href="#cb102-10" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb102-11"><a href="#cb102-11" aria-hidden="true" tabindex="-1"></a>  })</span>
+<span id="cb102-12"><a href="#cb102-12" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb102-13"><a href="#cb102-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"Carregado em"</span>, tempo[<span class="dv">3</span>], <span class="st">"segundos</span><span class="sc">\n</span><span class="st">"</span>)</span>
+<span id="cb102-14"><a href="#cb102-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">return</span>(df)</span>
+<span id="cb102-15"><a href="#cb102-15" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb102-16"><a href="#cb102-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb102-17"><a href="#cb102-17" aria-hidden="true" tabindex="-1"></a><span class="co"># Função otimizada para carregar JSON</span></span>
+<span id="cb102-18"><a href="#cb102-18" aria-hidden="true" tabindex="-1"></a>carregar_json <span class="ot">&lt;-</span> <span class="cf">function</span>(arquivo, <span class="at">como_tsibble =</span> <span class="cn">FALSE</span>, <span class="at">key_col =</span> <span class="cn">NULL</span>, <span class="at">index_col =</span> <span class="cn">NULL</span>, </span>
+<span id="cb102-19"><a href="#cb102-19" aria-hidden="true" tabindex="-1"></a>                         <span class="at">colunas_data =</span> <span class="cn">NULL</span>) {</span>
+<span id="cb102-20"><a href="#cb102-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"Carregando"</span>, arquivo, <span class="st">"...</span><span class="sc">\n</span><span class="st">"</span>)</span>
+<span id="cb102-21"><a href="#cb102-21" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb102-22"><a href="#cb102-22" aria-hidden="true" tabindex="-1"></a>  tempo <span class="ot">&lt;-</span> <span class="fu">system.time</span>({</span>
+<span id="cb102-23"><a href="#cb102-23" aria-hidden="true" tabindex="-1"></a>    df <span class="ot">&lt;-</span> <span class="fu">fromJSON</span>(arquivo, <span class="at">flatten =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb102-24"><a href="#cb102-24" aria-hidden="true" tabindex="-1"></a>    df <span class="ot">&lt;-</span> <span class="fu">as.data.table</span>(df)</span>
+<span id="cb102-25"><a href="#cb102-25" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb102-26"><a href="#cb102-26" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Converter colunas de data se especificadas</span></span>
+<span id="cb102-27"><a href="#cb102-27" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (<span class="sc">!</span><span class="fu">is.null</span>(colunas_data)) {</span>
+<span id="cb102-28"><a href="#cb102-28" aria-hidden="true" tabindex="-1"></a>      <span class="cf">for</span> (col <span class="cf">in</span> colunas_data) {</span>
+<span id="cb102-29"><a href="#cb102-29" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> (col <span class="sc">%in%</span> <span class="fu">names</span>(df)) {</span>
+<span id="cb102-30"><a href="#cb102-30" aria-hidden="true" tabindex="-1"></a>          df[[col]] <span class="ot">&lt;-</span> <span class="fu">as.Date</span>(df[[col]])</span>
+<span id="cb102-31"><a href="#cb102-31" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb102-32"><a href="#cb102-32" aria-hidden="true" tabindex="-1"></a>      }</span>
+<span id="cb102-33"><a href="#cb102-33" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb102-34"><a href="#cb102-34" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb102-35"><a href="#cb102-35" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Converter para tsibble se solicitado</span></span>
+<span id="cb102-36"><a href="#cb102-36" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (como_tsibble <span class="sc">&amp;&amp;</span> <span class="sc">!</span><span class="fu">is.null</span>(key_col) <span class="sc">&amp;&amp;</span> <span class="sc">!</span><span class="fu">is.null</span>(index_col)) {</span>
+<span id="cb102-37"><a href="#cb102-37" aria-hidden="true" tabindex="-1"></a>      df <span class="ot">&lt;-</span> <span class="fu">as_tsibble</span>(df, <span class="at">key =</span> <span class="fu">all_of</span>(key_col), <span class="at">index =</span> <span class="fu">all_of</span>(index_col))</span>
+<span id="cb102-38"><a href="#cb102-38" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb102-39"><a href="#cb102-39" aria-hidden="true" tabindex="-1"></a>  })</span>
+<span id="cb102-40"><a href="#cb102-40" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb102-41"><a href="#cb102-41" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"Carregado em"</span>, tempo[<span class="dv">3</span>], <span class="st">"segundos</span><span class="sc">\n</span><span class="st">"</span>)</span>
+<span id="cb102-42"><a href="#cb102-42" aria-hidden="true" tabindex="-1"></a>  <span class="fu">return</span>(df)</span>
+<span id="cb102-43"><a href="#cb102-43" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="testando-as-funções" class="level2">
+<h2 class="anchored" data-anchor-id="testando-as-funções">Testando as Funções</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb103"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb103-1"><a href="#cb103-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"TESTANDO FUNÇÕES REUTILIZÁVEIS:</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>TESTANDO FUNÇÕES REUTILIZÁVEIS:</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb105"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb105-1"><a href="#cb105-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"=====================================</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>=====================================</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb107"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb107-1"><a href="#cb107-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Exemplo 1: Carregar dados mensais como tsibble diretamente</span></span>
+<span id="cb107-2"><a href="#cb107-2" aria-hidden="true" tabindex="-1"></a>netflix_ts <span class="ot">&lt;-</span> <span class="fu">carregar_parquet</span>(<span class="st">"netflix_monthly.parquet"</span>, </span>
+<span id="cb107-3"><a href="#cb107-3" aria-hidden="true" tabindex="-1"></a>                              <span class="at">como_tsibble =</span> <span class="cn">TRUE</span>, </span>
+<span id="cb107-4"><a href="#cb107-4" aria-hidden="true" tabindex="-1"></a>                              <span class="at">key_col =</span> <span class="st">"type"</span>, </span>
+<span id="cb107-5"><a href="#cb107-5" aria-hidden="true" tabindex="-1"></a>                              <span class="at">index_col =</span> <span class="st">"year_month"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code> Carregando netflix_monthly.parquet ...
+Carregado em 0.03 segundos</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb109"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb109-1"><a href="#cb109-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Exemplo 2: Carregar JSON com conversão de datas</span></span>
+<span id="cb109-2"><a href="#cb109-2" aria-hidden="true" tabindex="-1"></a>netflix_json_dates <span class="ot">&lt;-</span> <span class="fu">carregar_json</span>(<span class="st">"netflix_monthly.json"</span>,</span>
+<span id="cb109-3"><a href="#cb109-3" aria-hidden="true" tabindex="-1"></a>                                   <span class="at">colunas_data =</span> <span class="st">"year_month"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Carregando netflix_monthly.json ...
+Carregado em 0.02 segundos</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb111"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb111-1"><a href="#cb111-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Funções testadas com sucesso!</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Funções testadas com sucesso!</code></pre>
+</div>
+</div>
+</section>
+<section id="insights-do-dataset-netflix" class="level2">
+<h2 class="anchored" data-anchor-id="insights-do-dataset-netflix">Insights do Dataset Netflix</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb113"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb113-1"><a href="#cb113-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"INSIGHTS DO NETFLIX DATASET:</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>INSIGHTS DO NETFLIX DATASET:</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb115"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb115-1"><a href="#cb115-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"================================</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>================================</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb117"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb117-1"><a href="#cb117-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Crescimento do catálogo</span></span>
+<span id="cb117-2"><a href="#cb117-2" aria-hidden="true" tabindex="-1"></a>growth <span class="ot">&lt;-</span> ts_netflix_parquet <span class="sc">%&gt;%</span></span>
+<span id="cb117-3"><a href="#cb117-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(<span class="at">year =</span> <span class="fu">year</span>(year_month)) <span class="sc">%&gt;%</span></span>
+<span id="cb117-4"><a href="#cb117-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">total_added =</span> <span class="fu">sum</span>(total_titles)) <span class="sc">%&gt;%</span></span>
+<span id="cb117-5"><a href="#cb117-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(year <span class="sc">&gt;=</span> <span class="dv">2015</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb117-6"><a href="#cb117-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(<span class="fu">desc</span>(total_added))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: Current temporal ordering may yield unexpected results.
+ℹ Suggest to sort by `year`, `year_month` first.</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb119"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb119-1"><a href="#cb119-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Anos com mais adições (2015+):</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Anos com mais adições (2015+):</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb121"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb121-1"><a href="#cb121-1" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(<span class="fu">head</span>(growth, <span class="dv">5</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tsibble: 5 x 3 [1D]
+# Key:       year [3]
+   year year_month total_added
+  &lt;dbl&gt; &lt;date&gt;           &lt;int&gt;
+1  2021 2021-07-01         257
+2  2019 2019-11-01         255
+3  2019 2019-12-01         215
+4  2021 2021-06-01         207
+5  2020 2020-01-01         205</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb123"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb123-1"><a href="#cb123-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. Comparação Movies vs TV Shows</span></span>
+<span id="cb123-2"><a href="#cb123-2" aria-hidden="true" tabindex="-1"></a>comparison <span class="ot">&lt;-</span> df_netflix_parquet[<span class="sc">!</span><span class="fu">is.na</span>(date_added) <span class="sc">&amp;</span> <span class="fu">year</span>(date_added) <span class="sc">&gt;=</span> <span class="dv">2018</span>, </span>
+<span id="cb123-3"><a href="#cb123-3" aria-hidden="true" tabindex="-1"></a>                                .(<span class="at">count =</span> .N), </span>
+<span id="cb123-4"><a href="#cb123-4" aria-hidden="true" tabindex="-1"></a>                                by <span class="ot">=</span> .(type, <span class="at">year =</span> <span class="fu">year</span>(date_added))]</span>
+<span id="cb123-5"><a href="#cb123-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb123-6"><a href="#cb123-6" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st"> Movies vs TV Shows (2018+):</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+ Movies vs TV Shows (2018+):</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb125"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb125-1"><a href="#cb125-1" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(comparison)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>      type  year count
+    &lt;char&gt; &lt;num&gt; &lt;int&gt;
+1:   Movie  2021   993
+2: TV Show  2021   505
+3:   Movie  2020  1284
+4: TV Show  2020   595
+5:   Movie  2019  1424
+6: TV Show  2019   592
+7:   Movie  2018  1237
+8: TV Show  2018   412</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb127"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb127-1"><a href="#cb127-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. Países mais ativos</span></span>
+<span id="cb127-2"><a href="#cb127-2" aria-hidden="true" tabindex="-1"></a>active_countries <span class="ot">&lt;-</span> df_netflix_parquet[<span class="sc">!</span><span class="fu">is.na</span>(country) <span class="sc">&amp;</span> <span class="sc">!</span><span class="fu">is.na</span>(date_added) <span class="sc">&amp;</span> <span class="fu">year</span>(date_added) <span class="sc">&gt;=</span> <span class="dv">2020</span>, </span>
+<span id="cb127-3"><a href="#cb127-3" aria-hidden="true" tabindex="-1"></a>                                      .(<span class="at">titles =</span> .N), </span>
+<span id="cb127-4"><a href="#cb127-4" aria-hidden="true" tabindex="-1"></a>                                      by <span class="ot">=</span> country][<span class="fu">order</span>(<span class="sc">-</span>titles)][<span class="dv">1</span><span class="sc">:</span><span class="dv">10</span>]</span>
+<span id="cb127-5"><a href="#cb127-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb127-6"><a href="#cb127-6" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st"> Top 10 Países (2020+):</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+ Top 10 Países (2020+):</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb129"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb129-1"><a href="#cb129-1" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(active_countries)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>           country titles
+            &lt;char&gt;  &lt;int&gt;
+ 1:  United States   1072
+ 2:                   466
+ 3:          India    284
+ 4:          Japan    106
+ 5: United Kingdom    103
+ 6:    South Korea     72
+ 7:        Nigeria     64
+ 8:         Canada     59
+ 9:          Egypt     52
+10:         Turkey     50</code></pre>
+</div>
+</div>
+</section>
+<section id="conclusões" class="level2">
+<h2 class="anchored" data-anchor-id="conclusões">Conclusões</h2>
+<section id="principais-descobertas" class="level3">
+<h3 class="anchored" data-anchor-id="principais-descobertas">Principais Descobertas:</h3>
+<ol type="1">
+<li><strong>Performance</strong>: Parquet consistentemente supera JSON em velocidade de carregamento</li>
+<li><strong>Espaço</strong>: Parquet é significativamente mais compacto que JSON</li>
+<li><strong>Dataset Netflix</strong>: Contém milhares de títulos com rica informação temporal</li>
+<li><strong>Tsibble</strong>: Ideal para análises de tendências temporais no catálogo</li>
+</ol>
+</section>
+<section id="recomendações" class="level3">
+<h3 class="anchored" data-anchor-id="recomendações">Recomendações:</h3>
+<ul>
+<li><strong>Use Parquet</strong> para datasets do Kaggle grandes (&gt; 1MB)</li>
+<li><strong>Use agregações mensais</strong> para análises temporais eficientes</li>
+<li><strong>Configure a API do Kaggle</strong> para downloads automáticos</li>
+<li><strong>Explore tsibble</strong> para insights de séries temporais</li>
+</ul>
+</section>
+</section>
+<section id="informações-da-sessão" class="level2">
+<h2 class="anchored" data-anchor-id="informações-da-sessão">Informações da Sessão</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb131"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb131-1"><a href="#cb131-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sessionInfo</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>R version 4.4.2 (2024-10-31 ucrt)
+Platform: x86_64-w64-mingw32/x64
+Running under: Windows 11 x64 (build 26100)
+
+Matrix products: default
+
+
+locale:
+[1] LC_COLLATE=Portuguese_Brazil.utf8  LC_CTYPE=Portuguese_Brazil.utf8   
+[3] LC_MONETARY=Portuguese_Brazil.utf8 LC_NUMERIC=C                      
+[5] LC_TIME=Portuguese_Brazil.utf8    
+
+time zone: America/Sao_Paulo
+tzcode source: internal
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] readr_2.1.5       dplyr_1.1.4       lubridate_1.9.4   tsibble_1.1.6    
+[5] data.table_1.17.8 jsonlite_2.0.0    arrow_21.0.0.1   
+
+loaded via a namespace (and not attached):
+ [1] bit_4.5.0.1       compiler_4.4.2    tidyselect_1.2.1  Rcpp_1.0.14      
+ [5] assertthat_0.2.1  yaml_2.3.10       fastmap_1.2.0     R6_2.5.1         
+ [9] generics_0.1.3    knitr_1.49        htmlwidgets_1.6.4 tibble_3.2.1     
+[13] pillar_1.10.1     tzdb_0.4.0        rlang_1.1.5       utf8_1.2.4       
+[17] xfun_0.50         bit64_4.6.0-1     timechange_0.3.0  cli_3.6.5        
+[21] withr_3.0.2       magrittr_2.0.3    digest_0.6.37     rstudioapi_0.17.1
+[25] hms_1.1.3         lifecycle_1.0.4   anytime_0.3.12    vctrs_0.6.5      
+[29] evaluate_1.0.3    glue_1.8.0        rmarkdown_2.29    purrr_1.0.4      
+[33] tools_4.4.2       pkgconfig_2.0.3   ellipsis_0.3.2    htmltools_0.5.8.1</code></pre>
+</div>
+</div>
+<!-- -->
+
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+  const viewSource = window.document.getElementById('quarto-view-source') ||
+                     window.document.getElementById('quarto-code-tools-source');
+  if (viewSource) {
+    const sourceUrl = viewSource.getAttribute("data-quarto-source-url");
+    viewSource.addEventListener("click", function(e) {
+      if (sourceUrl) {
+        // rstudio viewer pane
+        if (/\bcapabilities=\b/.test(window.location)) {
+          window.open(sourceUrl);
+        } else {
+          window.location.href = sourceUrl;
+        }
+      } else {
+        const modal = new bootstrap.Modal(document.getElementById('quarto-embedded-source-code-modal'));
+        modal.show();
+      }
+      return false;
+    });
+  }
+  function toggleCodeHandler(show) {
+    return function(e) {
+      const detailsSrc = window.document.querySelectorAll(".cell > details > .sourceCode");
+      for (let i=0; i<detailsSrc.length; i++) {
+        const details = detailsSrc[i].parentElement;
+        if (show) {
+          details.open = true;
+        } else {
+          details.removeAttribute("open");
+        }
+      }
+      const cellCodeDivs = window.document.querySelectorAll(".cell > .sourceCode");
+      const fromCls = show ? "hidden" : "unhidden";
+      const toCls = show ? "unhidden" : "hidden";
+      for (let i=0; i<cellCodeDivs.length; i++) {
+        const codeDiv = cellCodeDivs[i];
+        if (codeDiv.classList.contains(fromCls)) {
+          codeDiv.classList.remove(fromCls);
+          codeDiv.classList.add(toCls);
+        } 
+      }
+      return false;
+    }
+  }
+  const hideAllCode = window.document.getElementById("quarto-hide-all-code");
+  if (hideAllCode) {
+    hideAllCode.addEventListener("click", toggleCodeHandler(false));
+  }
+  const showAllCode = window.document.getElementById("quarto-show-all-code");
+  if (showAllCode) {
+    showAllCode.addEventListener("click", toggleCodeHandler(true));
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script><div class="modal fade" id="quarto-embedded-source-code-modal" tabindex="-1" aria-labelledby="quarto-embedded-source-code-modal-label" aria-hidden="true"><div class="modal-dialog modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="quarto-embedded-source-code-modal-label">Source Code</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="">
+<div class="sourceCode" id="cb133" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb133-1"><a href="#cb133-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb133-2"><a href="#cb133-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "Carregamento Rápido de Dados do Kaggle - Netflix Dataset"</span></span>
+<span id="cb133-3"><a href="#cb133-3" aria-hidden="true" tabindex="-1"></a><span class="an">author:</span><span class="co"> "Seu Nome"</span></span>
+<span id="cb133-4"><a href="#cb133-4" aria-hidden="true" tabindex="-1"></a><span class="an">date:</span><span class="co"> today</span></span>
+<span id="cb133-5"><a href="#cb133-5" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span><span class="co"> </span></span>
+<span id="cb133-6"><a href="#cb133-6" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
+<span id="cb133-7"><a href="#cb133-7" aria-hidden="true" tabindex="-1"></a><span class="co">    theme: cosmo</span></span>
+<span id="cb133-8"><a href="#cb133-8" aria-hidden="true" tabindex="-1"></a><span class="co">    toc: true</span></span>
+<span id="cb133-9"><a href="#cb133-9" aria-hidden="true" tabindex="-1"></a><span class="co">    code-fold: false</span></span>
+<span id="cb133-10"><a href="#cb133-10" aria-hidden="true" tabindex="-1"></a><span class="co">    code-tools: true</span></span>
+<span id="cb133-11"><a href="#cb133-11" aria-hidden="true" tabindex="-1"></a><span class="an">editor:</span><span class="co"> visual</span></span>
+<span id="cb133-12"><a href="#cb133-12" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb133-13"><a href="#cb133-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-14"><a href="#cb133-14" aria-hidden="true" tabindex="-1"></a><span class="fu">## Introdução</span></span>
+<span id="cb133-15"><a href="#cb133-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-16"><a href="#cb133-16" aria-hidden="true" tabindex="-1"></a>Este documento demonstra como carregar o famoso **Netflix Movies and TV Shows Dataset** do Kaggle de forma otimizada, convertendo-o em data frames e tsibbles para análise de dados temporais.</span>
+<span id="cb133-17"><a href="#cb133-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-18"><a href="#cb133-18" aria-hidden="true" tabindex="-1"></a>**Dataset**: Netflix Movies and TV Shows do Kaggle - "Listings of movies and tv shows on Netflix - Regularly Updated"</span>
+<span id="cb133-19"><a href="#cb133-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-20"><a href="#cb133-20" aria-hidden="true" tabindex="-1"></a><span class="fu">## Configuração Inicial</span></span>
+<span id="cb133-21"><a href="#cb133-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-22"><a href="#cb133-22" aria-hidden="true" tabindex="-1"></a>Primeiro, vamos carregar as bibliotecas necessárias:</span>
+<span id="cb133-23"><a href="#cb133-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-24"><a href="#cb133-24" aria-hidden="true" tabindex="-1"></a><span class="in">```{r setup, message=FALSE, warning=FALSE}</span></span>
+<span id="cb133-25"><a href="#cb133-25" aria-hidden="true" tabindex="-1"></a><span class="in">library(arrow)      </span></span>
+<span id="cb133-26"><a href="#cb133-26" aria-hidden="true" tabindex="-1"></a><span class="in">library(jsonlite)  </span></span>
+<span id="cb133-27"><a href="#cb133-27" aria-hidden="true" tabindex="-1"></a><span class="in">library(data.table) </span></span>
+<span id="cb133-28"><a href="#cb133-28" aria-hidden="true" tabindex="-1"></a><span class="in">library(tsibble)    </span></span>
+<span id="cb133-29"><a href="#cb133-29" aria-hidden="true" tabindex="-1"></a><span class="in">library(lubridate)  </span></span>
+<span id="cb133-30"><a href="#cb133-30" aria-hidden="true" tabindex="-1"></a><span class="in">library(dplyr)      </span></span>
+<span id="cb133-31"><a href="#cb133-31" aria-hidden="true" tabindex="-1"></a><span class="in">library(readr)      </span></span>
+<span id="cb133-32"><a href="#cb133-32" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb133-33"><a href="#cb133-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-34"><a href="#cb133-34" aria-hidden="true" tabindex="-1"></a><span class="fu">## Obtendo o Dataset do Kaggle</span></span>
+<span id="cb133-35"><a href="#cb133-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-36"><a href="#cb133-36" aria-hidden="true" tabindex="-1"></a>O arquivo <span class="in">`netflix_titles.csv`</span> está na pasta Downloads e será carregado diretamente.</span>
+<span id="cb133-37"><a href="#cb133-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-38"><a href="#cb133-38" aria-hidden="true" tabindex="-1"></a>**Dataset utilizado**: Netflix Movies and TV Shows do Kaggle</span>
+<span id="cb133-39"><a href="#cb133-39" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>URL: https://www.kaggle.com/datasets/shivamb/netflix-shows</span>
+<span id="cb133-40"><a href="#cb133-40" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Arquivo: <span class="in">`netflix_titles.csv`</span> (na pasta Downloads)</span>
+<span id="cb133-41"><a href="#cb133-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-42"><a href="#cb133-42" aria-hidden="true" tabindex="-1"></a><span class="fu">## Preparação dos Dados</span></span>
+<span id="cb133-43"><a href="#cb133-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-44"><a href="#cb133-44" aria-hidden="true" tabindex="-1"></a>Vamos carregar o arquivo CSV da pasta Downloads e prepará-lo para conversão nos formatos Parquet e JSON:</span>
+<span id="cb133-45"><a href="#cb133-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-46"><a href="#cb133-46" aria-hidden="true" tabindex="-1"></a><span class="in">```{r preparar-dados}</span></span>
+<span id="cb133-47"><a href="#cb133-47" aria-hidden="true" tabindex="-1"></a><span class="in">downloads_path &lt;- file.path(Sys.getenv("HOME"), "Downloads", "netflix_titles.csv")</span></span>
+<span id="cb133-48"><a href="#cb133-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-49"><a href="#cb133-49" aria-hidden="true" tabindex="-1"></a><span class="in">if (.Platform$OS.type == "windows") {</span></span>
+<span id="cb133-50"><a href="#cb133-50" aria-hidden="true" tabindex="-1"></a><span class="in">  downloads_path &lt;- file.path(Sys.getenv("USERPROFILE"), "Downloads", "netflix_titles.csv")</span></span>
+<span id="cb133-51"><a href="#cb133-51" aria-hidden="true" tabindex="-1"></a><span class="in">}</span></span>
+<span id="cb133-52"><a href="#cb133-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-53"><a href="#cb133-53" aria-hidden="true" tabindex="-1"></a><span class="in">cat("Procurando arquivo em:", downloads_path, "\n")</span></span>
+<span id="cb133-54"><a href="#cb133-54" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-55"><a href="#cb133-55" aria-hidden="true" tabindex="-1"></a><span class="in"># Verificar se o arquivo existe e carregar</span></span>
+<span id="cb133-56"><a href="#cb133-56" aria-hidden="true" tabindex="-1"></a><span class="in">if (file.exists(downloads_path)) {</span></span>
+<span id="cb133-57"><a href="#cb133-57" aria-hidden="true" tabindex="-1"></a><span class="in">  cat("Arquivo encontrado! Carregando dados do Netflix...\n")</span></span>
+<span id="cb133-58"><a href="#cb133-58" aria-hidden="true" tabindex="-1"></a><span class="in">  </span></span>
+<span id="cb133-59"><a href="#cb133-59" aria-hidden="true" tabindex="-1"></a><span class="in">  # Carregar dados reais do Netflix</span></span>
+<span id="cb133-60"><a href="#cb133-60" aria-hidden="true" tabindex="-1"></a><span class="in">  netflix_data &lt;- fread(downloads_path)</span></span>
+<span id="cb133-61"><a href="#cb133-61" aria-hidden="true" tabindex="-1"></a><span class="in">  cat("Dados reais do Netflix carregados com sucesso!\n")</span></span>
+<span id="cb133-62"><a href="#cb133-62" aria-hidden="true" tabindex="-1"></a><span class="in">  </span></span>
+<span id="cb133-63"><a href="#cb133-63" aria-hidden="true" tabindex="-1"></a><span class="in">} else {</span></span>
+<span id="cb133-64"><a href="#cb133-64" aria-hidden="true" tabindex="-1"></a><span class="in">  cat("Arquivo não encontrado em:", downloads_path, "\n")</span></span>
+<span id="cb133-65"><a href="#cb133-65" aria-hidden="true" tabindex="-1"></a><span class="in">  cat("Tentando caminhos alternativos...\n")</span></span>
+<span id="cb133-66"><a href="#cb133-66" aria-hidden="true" tabindex="-1"></a><span class="in">  </span></span>
+<span id="cb133-67"><a href="#cb133-67" aria-hidden="true" tabindex="-1"></a><span class="in">  # Tentar caminhos alternativos</span></span>
+<span id="cb133-68"><a href="#cb133-68" aria-hidden="true" tabindex="-1"></a><span class="in">  alternative_paths &lt;- c(</span></span>
+<span id="cb133-69"><a href="#cb133-69" aria-hidden="true" tabindex="-1"></a><span class="in">    "netflix_titles.csv",  # Pasta atual</span></span>
+<span id="cb133-70"><a href="#cb133-70" aria-hidden="true" tabindex="-1"></a><span class="in">    file.path("Downloads", "netflix_titles.csv"),  # Subpasta Downloads</span></span>
+<span id="cb133-71"><a href="#cb133-71" aria-hidden="true" tabindex="-1"></a><span class="in">    file.path("..", "Downloads", "netflix_titles.csv")  # Downloads na pasta pai</span></span>
+<span id="cb133-72"><a href="#cb133-72" aria-hidden="true" tabindex="-1"></a><span class="in">  )</span></span>
+<span id="cb133-73"><a href="#cb133-73" aria-hidden="true" tabindex="-1"></a><span class="in">  </span></span>
+<span id="cb133-74"><a href="#cb133-74" aria-hidden="true" tabindex="-1"></a><span class="in">  file_found &lt;- FALSE</span></span>
+<span id="cb133-75"><a href="#cb133-75" aria-hidden="true" tabindex="-1"></a><span class="in">  for (path in alternative_paths) {</span></span>
+<span id="cb133-76"><a href="#cb133-76" aria-hidden="true" tabindex="-1"></a><span class="in">    if (file.exists(path)) {</span></span>
+<span id="cb133-77"><a href="#cb133-77" aria-hidden="true" tabindex="-1"></a><span class="in">      cat("Arquivo encontrado em:", path, "\n")</span></span>
+<span id="cb133-78"><a href="#cb133-78" aria-hidden="true" tabindex="-1"></a><span class="in">      netflix_data &lt;- fread(path)</span></span>
+<span id="cb133-79"><a href="#cb133-79" aria-hidden="true" tabindex="-1"></a><span class="in">      file_found &lt;- TRUE</span></span>
+<span id="cb133-80"><a href="#cb133-80" aria-hidden="true" tabindex="-1"></a><span class="in">      break</span></span>
+<span id="cb133-81"><a href="#cb133-81" aria-hidden="true" tabindex="-1"></a><span class="in">    }</span></span>
+<span id="cb133-82"><a href="#cb133-82" aria-hidden="true" tabindex="-1"></a><span class="in">  }</span></span>
+<span id="cb133-83"><a href="#cb133-83" aria-hidden="true" tabindex="-1"></a><span class="in">  </span></span>
+<span id="cb133-84"><a href="#cb133-84" aria-hidden="true" tabindex="-1"></a><span class="in">  if (!file_found) {</span></span>
+<span id="cb133-85"><a href="#cb133-85" aria-hidden="true" tabindex="-1"></a><span class="in">    cat("Arquivo netflix_titles.csv não encontrado!\n")</span></span>
+<span id="cb133-86"><a href="#cb133-86" aria-hidden="true" tabindex="-1"></a><span class="in">    cat("Por favor, certifique-se de que o arquivo está em uma dessas localizações:\n")</span></span>
+<span id="cb133-87"><a href="#cb133-87" aria-hidden="true" tabindex="-1"></a><span class="in">    cat("   1. ~/Downloads/netflix_titles.csv\n")</span></span>
+<span id="cb133-88"><a href="#cb133-88" aria-hidden="true" tabindex="-1"></a><span class="in">    cat("   2. ./netflix_titles.csv (pasta atual do projeto)\n")</span></span>
+<span id="cb133-89"><a href="#cb133-89" aria-hidden="true" tabindex="-1"></a><span class="in">    cat("   3. ./Downloads/netflix_titles.csv\n")</span></span>
+<span id="cb133-90"><a href="#cb133-90" aria-hidden="true" tabindex="-1"></a><span class="in">    stop("Arquivo não encontrado. Por favor, verifique o caminho do arquivo.")</span></span>
+<span id="cb133-91"><a href="#cb133-91" aria-hidden="true" tabindex="-1"></a><span class="in">  }</span></span>
+<span id="cb133-92"><a href="#cb133-92" aria-hidden="true" tabindex="-1"></a><span class="in">}</span></span>
+<span id="cb133-93"><a href="#cb133-93" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-94"><a href="#cb133-94" aria-hidden="true" tabindex="-1"></a><span class="in"># Mostrar informações básicas do dataset real</span></span>
+<span id="cb133-95"><a href="#cb133-95" aria-hidden="true" tabindex="-1"></a><span class="in">cat("Dataset Netflix carregado:\n")</span></span>
+<span id="cb133-96"><a href="#cb133-96" aria-hidden="true" tabindex="-1"></a><span class="in">cat("   - Dimensões:", nrow(netflix_data), "linhas x", ncol(netflix_data), "colunas\n")</span></span>
+<span id="cb133-97"><a href="#cb133-97" aria-hidden="true" tabindex="-1"></a><span class="in">cat("   - Colunas:", paste(names(netflix_data), collapse = ", "), "\n")</span></span>
+<span id="cb133-98"><a href="#cb133-98" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-99"><a href="#cb133-99" aria-hidden="true" tabindex="-1"></a><span class="in"># Limpar e preparar os dados</span></span>
+<span id="cb133-100"><a href="#cb133-100" aria-hidden="true" tabindex="-1"></a><span class="in"># Converter date_added para formato Date</span></span>
+<span id="cb133-101"><a href="#cb133-101" aria-hidden="true" tabindex="-1"></a><span class="in">if ("date_added" %in% names(netflix_data)) {</span></span>
+<span id="cb133-102"><a href="#cb133-102" aria-hidden="true" tabindex="-1"></a><span class="in">  netflix_data[, date_added := mdy(date_added)]  # Assuming MM/DD/YYYY format</span></span>
+<span id="cb133-103"><a href="#cb133-103" aria-hidden="true" tabindex="-1"></a><span class="in">}</span></span>
+<span id="cb133-104"><a href="#cb133-104" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-105"><a href="#cb133-105" aria-hidden="true" tabindex="-1"></a><span class="in"># Garantir que release_year seja numérico</span></span>
+<span id="cb133-106"><a href="#cb133-106" aria-hidden="true" tabindex="-1"></a><span class="in">if ("release_year" %in% names(netflix_data)) {</span></span>
+<span id="cb133-107"><a href="#cb133-107" aria-hidden="true" tabindex="-1"></a><span class="in">  netflix_data[, release_year := as.numeric(release_year)]</span></span>
+<span id="cb133-108"><a href="#cb133-108" aria-hidden="true" tabindex="-1"></a><span class="in">}</span></span>
+<span id="cb133-109"><a href="#cb133-109" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-110"><a href="#cb133-110" aria-hidden="true" tabindex="-1"></a><span class="in"># Criar coluna year_month para agregações</span></span>
+<span id="cb133-111"><a href="#cb133-111" aria-hidden="true" tabindex="-1"></a><span class="in">netflix_data[!is.na(date_added), year_month := floor_date(date_added, "month")]</span></span>
+<span id="cb133-112"><a href="#cb133-112" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-113"><a href="#cb133-113" aria-hidden="true" tabindex="-1"></a><span class="in"># Mostrar período dos dados</span></span>
+<span id="cb133-114"><a href="#cb133-114" aria-hidden="true" tabindex="-1"></a><span class="in">if ("date_added" %in% names(netflix_data) &amp;&amp; sum(!is.na(netflix_data$date_added)) &gt; 0) {</span></span>
+<span id="cb133-115"><a href="#cb133-115" aria-hidden="true" tabindex="-1"></a><span class="in">  cat("Período dos dados:", min(netflix_data$date_added, na.rm = TRUE), "a", </span></span>
+<span id="cb133-116"><a href="#cb133-116" aria-hidden="true" tabindex="-1"></a><span class="in">      max(netflix_data$date_added, na.rm = TRUE), "\n")</span></span>
+<span id="cb133-117"><a href="#cb133-117" aria-hidden="true" tabindex="-1"></a><span class="in">}</span></span>
+<span id="cb133-118"><a href="#cb133-118" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-119"><a href="#cb133-119" aria-hidden="true" tabindex="-1"></a><span class="in"># Mostrar estrutura dos dados reais</span></span>
+<span id="cb133-120"><a href="#cb133-120" aria-hidden="true" tabindex="-1"></a><span class="in">cat("\n Estrutura dos dados:\n")</span></span>
+<span id="cb133-121"><a href="#cb133-121" aria-hidden="true" tabindex="-1"></a><span class="in">str(netflix_data)</span></span>
+<span id="cb133-122"><a href="#cb133-122" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-123"><a href="#cb133-123" aria-hidden="true" tabindex="-1"></a><span class="in"># Mostrar primeiras linhas</span></span>
+<span id="cb133-124"><a href="#cb133-124" aria-hidden="true" tabindex="-1"></a><span class="in">cat("\n Primeiras 5 linhas:\n")</span></span>
+<span id="cb133-125"><a href="#cb133-125" aria-hidden="true" tabindex="-1"></a><span class="in">print(head(netflix_data, 5))</span></span>
+<span id="cb133-126"><a href="#cb133-126" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb133-127"><a href="#cb133-127" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-128"><a href="#cb133-128" aria-hidden="true" tabindex="-1"></a><span class="fu">### Criando Agregações Temporais para Tsibble</span></span>
+<span id="cb133-129"><a href="#cb133-129" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-130"><a href="#cb133-130" aria-hidden="true" tabindex="-1"></a><span class="in">```{r agregar-dados}</span></span>
+<span id="cb133-131"><a href="#cb133-131" aria-hidden="true" tabindex="-1"></a><span class="in">netflix_monthly &lt;- netflix_data[!is.na(date_added)] %&gt;%</span></span>
+<span id="cb133-132"><a href="#cb133-132" aria-hidden="true" tabindex="-1"></a><span class="in">  group_by(year_month, type) %&gt;%</span></span>
+<span id="cb133-133"><a href="#cb133-133" aria-hidden="true" tabindex="-1"></a><span class="in">  summarise(</span></span>
+<span id="cb133-134"><a href="#cb133-134" aria-hidden="true" tabindex="-1"></a><span class="in">    total_titles = n(),</span></span>
+<span id="cb133-135"><a href="#cb133-135" aria-hidden="true" tabindex="-1"></a><span class="in">    avg_release_year = mean(release_year, na.rm = TRUE),</span></span>
+<span id="cb133-136"><a href="#cb133-136" aria-hidden="true" tabindex="-1"></a><span class="in">    unique_countries = n_distinct(country, na.rm = TRUE),</span></span>
+<span id="cb133-137"><a href="#cb133-137" aria-hidden="true" tabindex="-1"></a><span class="in">    .groups = 'drop'</span></span>
+<span id="cb133-138"><a href="#cb133-138" aria-hidden="true" tabindex="-1"></a><span class="in">  ) %&gt;%</span></span>
+<span id="cb133-139"><a href="#cb133-139" aria-hidden="true" tabindex="-1"></a><span class="in">  as.data.table()</span></span>
+<span id="cb133-140"><a href="#cb133-140" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-141"><a href="#cb133-141" aria-hidden="true" tabindex="-1"></a><span class="in">netflix_monthly[, id := paste(year_month, type, sep = "_")]</span></span>
+<span id="cb133-142"><a href="#cb133-142" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-143"><a href="#cb133-143" aria-hidden="true" tabindex="-1"></a><span class="in">cat("📈 Dados agregados por mês criados:", nrow(netflix_monthly), "registros\n")</span></span>
+<span id="cb133-144"><a href="#cb133-144" aria-hidden="true" tabindex="-1"></a><span class="in">head(netflix_monthly)</span></span>
+<span id="cb133-145"><a href="#cb133-145" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb133-146"><a href="#cb133-146" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-147"><a href="#cb133-147" aria-hidden="true" tabindex="-1"></a><span class="fu">## Salvando nos Formatos Parquet e JSON</span></span>
+<span id="cb133-148"><a href="#cb133-148" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-149"><a href="#cb133-149" aria-hidden="true" tabindex="-1"></a><span class="in">```{r salvar-arquivos}</span></span>
+<span id="cb133-150"><a href="#cb133-150" aria-hidden="true" tabindex="-1"></a><span class="in">write_parquet(netflix_data, "netflix_data.parquet")</span></span>
+<span id="cb133-151"><a href="#cb133-151" aria-hidden="true" tabindex="-1"></a><span class="in">write_json(netflix_data, "netflix_data.json")</span></span>
+<span id="cb133-152"><a href="#cb133-152" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-153"><a href="#cb133-153" aria-hidden="true" tabindex="-1"></a><span class="in">write_parquet(netflix_monthly, "netflix_monthly.parquet")</span></span>
+<span id="cb133-154"><a href="#cb133-154" aria-hidden="true" tabindex="-1"></a><span class="in">write_json(netflix_monthly, "netflix_monthly.json")</span></span>
+<span id="cb133-155"><a href="#cb133-155" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-156"><a href="#cb133-156" aria-hidden="true" tabindex="-1"></a><span class="in">cat("Arquivos salvos:\n")</span></span>
+<span id="cb133-157"><a href="#cb133-157" aria-hidden="true" tabindex="-1"></a><span class="in">cat("   - netflix_data.parquet (dados completos)\n")</span></span>
+<span id="cb133-158"><a href="#cb133-158" aria-hidden="true" tabindex="-1"></a><span class="in">cat("   - netflix_data.json (dados completos)\n")</span></span>
+<span id="cb133-159"><a href="#cb133-159" aria-hidden="true" tabindex="-1"></a><span class="in">cat("   - netflix_monthly.parquet (dados agregados mensais)\n")</span></span>
+<span id="cb133-160"><a href="#cb133-160" aria-hidden="true" tabindex="-1"></a><span class="in">cat("   - netflix_monthly.json (dados agregados mensais)\n")</span></span>
+<span id="cb133-161"><a href="#cb133-161" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb133-162"><a href="#cb133-162" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-163"><a href="#cb133-163" aria-hidden="true" tabindex="-1"></a><span class="fu">## Carregamento Otimizado - Parquet</span></span>
+<span id="cb133-164"><a href="#cb133-164" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-165"><a href="#cb133-165" aria-hidden="true" tabindex="-1"></a><span class="in">```{r carregar-parquet}</span></span>
+<span id="cb133-166"><a href="#cb133-166" aria-hidden="true" tabindex="-1"></a><span class="in">cat("Carregando arquivo Parquet (dados completos)...\n")</span></span>
+<span id="cb133-167"><a href="#cb133-167" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-168"><a href="#cb133-168" aria-hidden="true" tabindex="-1"></a><span class="in">tempo_parquet_full &lt;- system.time({</span></span>
+<span id="cb133-169"><a href="#cb133-169" aria-hidden="true" tabindex="-1"></a><span class="in">  df_netflix_parquet &lt;- read_parquet("netflix_data.parquet")</span></span>
+<span id="cb133-170"><a href="#cb133-170" aria-hidden="true" tabindex="-1"></a><span class="in">})</span></span>
+<span id="cb133-171"><a href="#cb133-171" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-172"><a href="#cb133-172" aria-hidden="true" tabindex="-1"></a><span class="in">tempo_parquet_monthly &lt;- system.time({</span></span>
+<span id="cb133-173"><a href="#cb133-173" aria-hidden="true" tabindex="-1"></a><span class="in">  df_monthly_parquet &lt;- read_parquet("netflix_monthly.parquet")</span></span>
+<span id="cb133-174"><a href="#cb133-174" aria-hidden="true" tabindex="-1"></a><span class="in">})</span></span>
+<span id="cb133-175"><a href="#cb133-175" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-176"><a href="#cb133-176" aria-hidden="true" tabindex="-1"></a><span class="in">cat("Tempo Parquet (completo):", tempo_parquet_full[3], "segundos\n")</span></span>
+<span id="cb133-177"><a href="#cb133-177" aria-hidden="true" tabindex="-1"></a><span class="in">cat("Tempo Parquet (mensal):", tempo_parquet_monthly[3], "segundos\n")</span></span>
+<span id="cb133-178"><a href="#cb133-178" aria-hidden="true" tabindex="-1"></a><span class="in">cat("Dimensões (completo):", nrow(df_netflix_parquet), "x", ncol(df_netflix_parquet), "\n")</span></span>
+<span id="cb133-179"><a href="#cb133-179" aria-hidden="true" tabindex="-1"></a><span class="in">cat("Dimensões (mensal):", nrow(df_monthly_parquet), "x", ncol(df_monthly_parquet), "\n")</span></span>
+<span id="cb133-180"><a href="#cb133-180" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-181"><a href="#cb133-181" aria-hidden="true" tabindex="-1"></a><span class="in">head(df_netflix_parquet[, .(title, type, date_added, release_year, country)])</span></span>
+<span id="cb133-182"><a href="#cb133-182" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb133-183"><a href="#cb133-183" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-184"><a href="#cb133-184" aria-hidden="true" tabindex="-1"></a><span class="fu">## Carregamento Otimizado - JSON</span></span>
+<span id="cb133-185"><a href="#cb133-185" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-186"><a href="#cb133-186" aria-hidden="true" tabindex="-1"></a><span class="in">```{r carregar-json}</span></span>
+<span id="cb133-187"><a href="#cb133-187" aria-hidden="true" tabindex="-1"></a><span class="in">cat("Carregando arquivo JSON...\n")</span></span>
+<span id="cb133-188"><a href="#cb133-188" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-189"><a href="#cb133-189" aria-hidden="true" tabindex="-1"></a><span class="in">tempo_json_full &lt;- system.time({</span></span>
+<span id="cb133-190"><a href="#cb133-190" aria-hidden="true" tabindex="-1"></a><span class="in">  df_netflix_json &lt;- fromJSON("netflix_data.json", flatten = TRUE)</span></span>
+<span id="cb133-191"><a href="#cb133-191" aria-hidden="true" tabindex="-1"></a><span class="in">  df_netflix_json &lt;- as.data.table(df_netflix_json)</span></span>
+<span id="cb133-192"><a href="#cb133-192" aria-hidden="true" tabindex="-1"></a><span class="in">  df_netflix_json[, date_added := as.Date(date_added)]</span></span>
+<span id="cb133-193"><a href="#cb133-193" aria-hidden="true" tabindex="-1"></a><span class="in">  df_netflix_json[, year_month := as.Date(year_month)]</span></span>
+<span id="cb133-194"><a href="#cb133-194" aria-hidden="true" tabindex="-1"></a><span class="in">})</span></span>
+<span id="cb133-195"><a href="#cb133-195" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-196"><a href="#cb133-196" aria-hidden="true" tabindex="-1"></a><span class="in">tempo_json_monthly &lt;- system.time({</span></span>
+<span id="cb133-197"><a href="#cb133-197" aria-hidden="true" tabindex="-1"></a><span class="in">  df_monthly_json &lt;- fromJSON("netflix_monthly.json", flatten = TRUE)</span></span>
+<span id="cb133-198"><a href="#cb133-198" aria-hidden="true" tabindex="-1"></a><span class="in">  df_monthly_json &lt;- as.data.table(df_monthly_json)</span></span>
+<span id="cb133-199"><a href="#cb133-199" aria-hidden="true" tabindex="-1"></a><span class="in">  df_monthly_json[, year_month := as.Date(year_month)]</span></span>
+<span id="cb133-200"><a href="#cb133-200" aria-hidden="true" tabindex="-1"></a><span class="in">})</span></span>
+<span id="cb133-201"><a href="#cb133-201" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-202"><a href="#cb133-202" aria-hidden="true" tabindex="-1"></a><span class="in">cat("Tempo JSON (completo):", tempo_json_full[3], "segundos\n")</span></span>
+<span id="cb133-203"><a href="#cb133-203" aria-hidden="true" tabindex="-1"></a><span class="in">cat("Tempo JSON (mensal):", tempo_json_monthly[3], "segundos\n")</span></span>
+<span id="cb133-204"><a href="#cb133-204" aria-hidden="true" tabindex="-1"></a><span class="in">cat("Dimensões (completo):", nrow(df_netflix_json), "x", ncol(df_netflix_json), "\n")</span></span>
+<span id="cb133-205"><a href="#cb133-205" aria-hidden="true" tabindex="-1"></a><span class="in">cat("Dimensões (mensal):", nrow(df_monthly_json), "x", ncol(df_monthly_json), "\n")</span></span>
+<span id="cb133-206"><a href="#cb133-206" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb133-207"><a href="#cb133-207" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-208"><a href="#cb133-208" aria-hidden="true" tabindex="-1"></a><span class="fu">## Conversão para Tsibble</span></span>
+<span id="cb133-209"><a href="#cb133-209" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-210"><a href="#cb133-210" aria-hidden="true" tabindex="-1"></a>Para análise de séries temporais, usamos os dados agregados mensais:</span>
+<span id="cb133-211"><a href="#cb133-211" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-212"><a href="#cb133-212" aria-hidden="true" tabindex="-1"></a><span class="in">```{r converter-tsibble}</span></span>
+<span id="cb133-213"><a href="#cb133-213" aria-hidden="true" tabindex="-1"></a><span class="in">cat("Convertendo dados mensais para tsibble...\n")</span></span>
+<span id="cb133-214"><a href="#cb133-214" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-215"><a href="#cb133-215" aria-hidden="true" tabindex="-1"></a><span class="in">ts_netflix_parquet &lt;- df_monthly_parquet %&gt;%</span></span>
+<span id="cb133-216"><a href="#cb133-216" aria-hidden="true" tabindex="-1"></a><span class="in">  as_tsibble(key = c(type), index = year_month)</span></span>
+<span id="cb133-217"><a href="#cb133-217" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-218"><a href="#cb133-218" aria-hidden="true" tabindex="-1"></a><span class="in">ts_netflix_json &lt;- df_monthly_json %&gt;%</span></span>
+<span id="cb133-219"><a href="#cb133-219" aria-hidden="true" tabindex="-1"></a><span class="in">  as_tsibble(key = c(type), index = year_month)</span></span>
+<span id="cb133-220"><a href="#cb133-220" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-221"><a href="#cb133-221" aria-hidden="true" tabindex="-1"></a><span class="in">cat("Conversão para tsibble concluída!\n")</span></span>
+<span id="cb133-222"><a href="#cb133-222" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-223"><a href="#cb133-223" aria-hidden="true" tabindex="-1"></a><span class="in">print("Tsibble Netflix (Parquet):")</span></span>
+<span id="cb133-224"><a href="#cb133-224" aria-hidden="true" tabindex="-1"></a><span class="in">print(ts_netflix_parquet)</span></span>
+<span id="cb133-225"><a href="#cb133-225" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-226"><a href="#cb133-226" aria-hidden="true" tabindex="-1"></a><span class="in">cat("\n Tendências no Netflix:\n")</span></span>
+<span id="cb133-227"><a href="#cb133-227" aria-hidden="true" tabindex="-1"></a><span class="in">print(ts_netflix_parquet %&gt;% </span></span>
+<span id="cb133-228"><a href="#cb133-228" aria-hidden="true" tabindex="-1"></a><span class="in">      group_by(type) %&gt;% </span></span>
+<span id="cb133-229"><a href="#cb133-229" aria-hidden="true" tabindex="-1"></a><span class="in">      summarise(</span></span>
+<span id="cb133-230"><a href="#cb133-230" aria-hidden="true" tabindex="-1"></a><span class="in">        total_titles = sum(total_titles),</span></span>
+<span id="cb133-231"><a href="#cb133-231" aria-hidden="true" tabindex="-1"></a><span class="in">        avg_monthly = mean(total_titles),</span></span>
+<span id="cb133-232"><a href="#cb133-232" aria-hidden="true" tabindex="-1"></a><span class="in">        max_monthly = max(total_titles)</span></span>
+<span id="cb133-233"><a href="#cb133-233" aria-hidden="true" tabindex="-1"></a><span class="in">      ))</span></span>
+<span id="cb133-234"><a href="#cb133-234" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb133-235"><a href="#cb133-235" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-236"><a href="#cb133-236" aria-hidden="true" tabindex="-1"></a><span class="fu">## Análise Exploratória dos Dados</span></span>
+<span id="cb133-237"><a href="#cb133-237" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-238"><a href="#cb133-238" aria-hidden="true" tabindex="-1"></a><span class="in">```{r analise-exploratoria}</span></span>
+<span id="cb133-239"><a href="#cb133-239" aria-hidden="true" tabindex="-1"></a><span class="in"># Análise por tipo de conteúdo</span></span>
+<span id="cb133-240"><a href="#cb133-240" aria-hidden="true" tabindex="-1"></a><span class="in">cat("ANÁLISE DO CONTEÚDO NETFLIX:\n")</span></span>
+<span id="cb133-241"><a href="#cb133-241" aria-hidden="true" tabindex="-1"></a><span class="in">cat("===============================\n")</span></span>
+<span id="cb133-242"><a href="#cb133-242" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-243"><a href="#cb133-243" aria-hidden="true" tabindex="-1"></a><span class="in"># Distribuição por tipo</span></span>
+<span id="cb133-244"><a href="#cb133-244" aria-hidden="true" tabindex="-1"></a><span class="in">table_type &lt;- table(df_netflix_parquet$type)</span></span>
+<span id="cb133-245"><a href="#cb133-245" aria-hidden="true" tabindex="-1"></a><span class="in">print("Distribuição por Tipo:")</span></span>
+<span id="cb133-246"><a href="#cb133-246" aria-hidden="true" tabindex="-1"></a><span class="in">print(table_type)</span></span>
+<span id="cb133-247"><a href="#cb133-247" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-248"><a href="#cb133-248" aria-hidden="true" tabindex="-1"></a><span class="in"># Top 5 países</span></span>
+<span id="cb133-249"><a href="#cb133-249" aria-hidden="true" tabindex="-1"></a><span class="in">cat("\n Top 5 Países (sem NA):\n")</span></span>
+<span id="cb133-250"><a href="#cb133-250" aria-hidden="true" tabindex="-1"></a><span class="in">top_countries &lt;- df_netflix_parquet[!is.na(country), .N, by = country][order(-N)][1:5]</span></span>
+<span id="cb133-251"><a href="#cb133-251" aria-hidden="true" tabindex="-1"></a><span class="in">print(top_countries)</span></span>
+<span id="cb133-252"><a href="#cb133-252" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-253"><a href="#cb133-253" aria-hidden="true" tabindex="-1"></a><span class="in"># Análise temporal</span></span>
+<span id="cb133-254"><a href="#cb133-254" aria-hidden="true" tabindex="-1"></a><span class="in">cat("\n Adições por Ano:\n")</span></span>
+<span id="cb133-255"><a href="#cb133-255" aria-hidden="true" tabindex="-1"></a><span class="in">yearly_additions &lt;- df_netflix_parquet[!is.na(date_added), </span></span>
+<span id="cb133-256"><a href="#cb133-256" aria-hidden="true" tabindex="-1"></a><span class="in">                                      .(total = .N), </span></span>
+<span id="cb133-257"><a href="#cb133-257" aria-hidden="true" tabindex="-1"></a><span class="in">                                      by = .(year = year(date_added))][order(year)]</span></span>
+<span id="cb133-258"><a href="#cb133-258" aria-hidden="true" tabindex="-1"></a><span class="in">print(tail(yearly_additions, 8))</span></span>
+<span id="cb133-259"><a href="#cb133-259" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb133-260"><a href="#cb133-260" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-261"><a href="#cb133-261" aria-hidden="true" tabindex="-1"></a><span class="fu">## Comparação de Performance</span></span>
+<span id="cb133-262"><a href="#cb133-262" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-263"><a href="#cb133-263" aria-hidden="true" tabindex="-1"></a><span class="in">```{r comparacao}</span></span>
+<span id="cb133-264"><a href="#cb133-264" aria-hidden="true" tabindex="-1"></a><span class="in">cat(" COMPARAÇÃO DE PERFORMANCE:\n")</span></span>
+<span id="cb133-265"><a href="#cb133-265" aria-hidden="true" tabindex="-1"></a><span class="in">cat("==========================================\n")</span></span>
+<span id="cb133-266"><a href="#cb133-266" aria-hidden="true" tabindex="-1"></a><span class="in">cat("Parquet (completo): ", tempo_parquet_full[3], "segundos\n")</span></span>
+<span id="cb133-267"><a href="#cb133-267" aria-hidden="true" tabindex="-1"></a><span class="in">cat("JSON (completo):    ", tempo_json_full[3], "segundos\n")</span></span>
+<span id="cb133-268"><a href="#cb133-268" aria-hidden="true" tabindex="-1"></a><span class="in">cat("Parquet (mensal):   ", tempo_parquet_monthly[3], "segundos\n")</span></span>
+<span id="cb133-269"><a href="#cb133-269" aria-hidden="true" tabindex="-1"></a><span class="in">cat("JSON (mensal):      ", tempo_json_monthly[3], "segundos\n")</span></span>
+<span id="cb133-270"><a href="#cb133-270" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-271"><a href="#cb133-271" aria-hidden="true" tabindex="-1"></a><span class="in"># Calcular eficiência</span></span>
+<span id="cb133-272"><a href="#cb133-272" aria-hidden="true" tabindex="-1"></a><span class="in">if (tempo_parquet_full[3] &lt; tempo_json_full[3]) {</span></span>
+<span id="cb133-273"><a href="#cb133-273" aria-hidden="true" tabindex="-1"></a><span class="in">  speedup &lt;- round(tempo_json_full[3]/tempo_parquet_full[3], 2)</span></span>
+<span id="cb133-274"><a href="#cb133-274" aria-hidden="true" tabindex="-1"></a><span class="in">  cat(" Parquet foi", speedup, "x mais rápido que JSON!\n")</span></span>
+<span id="cb133-275"><a href="#cb133-275" aria-hidden="true" tabindex="-1"></a><span class="in">} else {</span></span>
+<span id="cb133-276"><a href="#cb133-276" aria-hidden="true" tabindex="-1"></a><span class="in">  speedup &lt;- round(tempo_parquet_full[3]/tempo_json_full[3], 2)</span></span>
+<span id="cb133-277"><a href="#cb133-277" aria-hidden="true" tabindex="-1"></a><span class="in">  cat(" JSON foi", speedup, "x mais rápido que Parquet!\n")</span></span>
+<span id="cb133-278"><a href="#cb133-278" aria-hidden="true" tabindex="-1"></a><span class="in">}</span></span>
+<span id="cb133-279"><a href="#cb133-279" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-280"><a href="#cb133-280" aria-hidden="true" tabindex="-1"></a><span class="in"># Tamanhos de arquivo</span></span>
+<span id="cb133-281"><a href="#cb133-281" aria-hidden="true" tabindex="-1"></a><span class="in">if (file.exists("netflix_data.parquet") &amp;&amp; file.exists("netflix_data.json")) {</span></span>
+<span id="cb133-282"><a href="#cb133-282" aria-hidden="true" tabindex="-1"></a><span class="in">  size_parquet &lt;- file.size("netflix_data.parquet") / 1024 / 1024  # MB</span></span>
+<span id="cb133-283"><a href="#cb133-283" aria-hidden="true" tabindex="-1"></a><span class="in">  size_json &lt;- file.size("netflix_data.json") / 1024 / 1024        # MB</span></span>
+<span id="cb133-284"><a href="#cb133-284" aria-hidden="true" tabindex="-1"></a><span class="in">  </span></span>
+<span id="cb133-285"><a href="#cb133-285" aria-hidden="true" tabindex="-1"></a><span class="in">  cat("\n TAMANHOS DOS ARQUIVOS:\n")</span></span>
+<span id="cb133-286"><a href="#cb133-286" aria-hidden="true" tabindex="-1"></a><span class="in">  cat("Parquet:", round(size_parquet, 2), "MB\n")</span></span>
+<span id="cb133-287"><a href="#cb133-287" aria-hidden="true" tabindex="-1"></a><span class="in">  cat("JSON:   ", round(size_json, 2), "MB\n")</span></span>
+<span id="cb133-288"><a href="#cb133-288" aria-hidden="true" tabindex="-1"></a><span class="in">  cat("Eficiência de espaço: Parquet é", round(size_json/size_parquet, 2), "x menor\n")</span></span>
+<span id="cb133-289"><a href="#cb133-289" aria-hidden="true" tabindex="-1"></a><span class="in">}</span></span>
+<span id="cb133-290"><a href="#cb133-290" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb133-291"><a href="#cb133-291" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-292"><a href="#cb133-292" aria-hidden="true" tabindex="-1"></a><span class="fu">## Funções Reutilizáveis Otimizadas</span></span>
+<span id="cb133-293"><a href="#cb133-293" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-294"><a href="#cb133-294" aria-hidden="true" tabindex="-1"></a><span class="in">```{r funcoes-reutilizaveis}</span></span>
+<span id="cb133-295"><a href="#cb133-295" aria-hidden="true" tabindex="-1"></a><span class="in"># Função otimizada para carregar Parquet</span></span>
+<span id="cb133-296"><a href="#cb133-296" aria-hidden="true" tabindex="-1"></a><span class="in">carregar_parquet &lt;- function(arquivo, como_tsibble = FALSE, key_col = NULL, index_col = NULL) {</span></span>
+<span id="cb133-297"><a href="#cb133-297" aria-hidden="true" tabindex="-1"></a><span class="in">  cat(" Carregando", arquivo, "...\n")</span></span>
+<span id="cb133-298"><a href="#cb133-298" aria-hidden="true" tabindex="-1"></a><span class="in">  </span></span>
+<span id="cb133-299"><a href="#cb133-299" aria-hidden="true" tabindex="-1"></a><span class="in">  tempo &lt;- system.time({</span></span>
+<span id="cb133-300"><a href="#cb133-300" aria-hidden="true" tabindex="-1"></a><span class="in">    df &lt;- read_parquet(arquivo)</span></span>
+<span id="cb133-301"><a href="#cb133-301" aria-hidden="true" tabindex="-1"></a><span class="in">    </span></span>
+<span id="cb133-302"><a href="#cb133-302" aria-hidden="true" tabindex="-1"></a><span class="in">    if (como_tsibble &amp;&amp; !is.null(key_col) &amp;&amp; !is.null(index_col)) {</span></span>
+<span id="cb133-303"><a href="#cb133-303" aria-hidden="true" tabindex="-1"></a><span class="in">      df &lt;- as_tsibble(df, key = all_of(key_col), index = all_of(index_col))</span></span>
+<span id="cb133-304"><a href="#cb133-304" aria-hidden="true" tabindex="-1"></a><span class="in">    }</span></span>
+<span id="cb133-305"><a href="#cb133-305" aria-hidden="true" tabindex="-1"></a><span class="in">  })</span></span>
+<span id="cb133-306"><a href="#cb133-306" aria-hidden="true" tabindex="-1"></a><span class="in">  </span></span>
+<span id="cb133-307"><a href="#cb133-307" aria-hidden="true" tabindex="-1"></a><span class="in">  cat("Carregado em", tempo[3], "segundos\n")</span></span>
+<span id="cb133-308"><a href="#cb133-308" aria-hidden="true" tabindex="-1"></a><span class="in">  return(df)</span></span>
+<span id="cb133-309"><a href="#cb133-309" aria-hidden="true" tabindex="-1"></a><span class="in">}</span></span>
+<span id="cb133-310"><a href="#cb133-310" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-311"><a href="#cb133-311" aria-hidden="true" tabindex="-1"></a><span class="in"># Função otimizada para carregar JSON</span></span>
+<span id="cb133-312"><a href="#cb133-312" aria-hidden="true" tabindex="-1"></a><span class="in">carregar_json &lt;- function(arquivo, como_tsibble = FALSE, key_col = NULL, index_col = NULL, </span></span>
+<span id="cb133-313"><a href="#cb133-313" aria-hidden="true" tabindex="-1"></a><span class="in">                         colunas_data = NULL) {</span></span>
+<span id="cb133-314"><a href="#cb133-314" aria-hidden="true" tabindex="-1"></a><span class="in">  cat("Carregando", arquivo, "...\n")</span></span>
+<span id="cb133-315"><a href="#cb133-315" aria-hidden="true" tabindex="-1"></a><span class="in">  </span></span>
+<span id="cb133-316"><a href="#cb133-316" aria-hidden="true" tabindex="-1"></a><span class="in">  tempo &lt;- system.time({</span></span>
+<span id="cb133-317"><a href="#cb133-317" aria-hidden="true" tabindex="-1"></a><span class="in">    df &lt;- fromJSON(arquivo, flatten = TRUE)</span></span>
+<span id="cb133-318"><a href="#cb133-318" aria-hidden="true" tabindex="-1"></a><span class="in">    df &lt;- as.data.table(df)</span></span>
+<span id="cb133-319"><a href="#cb133-319" aria-hidden="true" tabindex="-1"></a><span class="in">    </span></span>
+<span id="cb133-320"><a href="#cb133-320" aria-hidden="true" tabindex="-1"></a><span class="in">    # Converter colunas de data se especificadas</span></span>
+<span id="cb133-321"><a href="#cb133-321" aria-hidden="true" tabindex="-1"></a><span class="in">    if (!is.null(colunas_data)) {</span></span>
+<span id="cb133-322"><a href="#cb133-322" aria-hidden="true" tabindex="-1"></a><span class="in">      for (col in colunas_data) {</span></span>
+<span id="cb133-323"><a href="#cb133-323" aria-hidden="true" tabindex="-1"></a><span class="in">        if (col %in% names(df)) {</span></span>
+<span id="cb133-324"><a href="#cb133-324" aria-hidden="true" tabindex="-1"></a><span class="in">          df[[col]] &lt;- as.Date(df[[col]])</span></span>
+<span id="cb133-325"><a href="#cb133-325" aria-hidden="true" tabindex="-1"></a><span class="in">        }</span></span>
+<span id="cb133-326"><a href="#cb133-326" aria-hidden="true" tabindex="-1"></a><span class="in">      }</span></span>
+<span id="cb133-327"><a href="#cb133-327" aria-hidden="true" tabindex="-1"></a><span class="in">    }</span></span>
+<span id="cb133-328"><a href="#cb133-328" aria-hidden="true" tabindex="-1"></a><span class="in">    </span></span>
+<span id="cb133-329"><a href="#cb133-329" aria-hidden="true" tabindex="-1"></a><span class="in">    # Converter para tsibble se solicitado</span></span>
+<span id="cb133-330"><a href="#cb133-330" aria-hidden="true" tabindex="-1"></a><span class="in">    if (como_tsibble &amp;&amp; !is.null(key_col) &amp;&amp; !is.null(index_col)) {</span></span>
+<span id="cb133-331"><a href="#cb133-331" aria-hidden="true" tabindex="-1"></a><span class="in">      df &lt;- as_tsibble(df, key = all_of(key_col), index = all_of(index_col))</span></span>
+<span id="cb133-332"><a href="#cb133-332" aria-hidden="true" tabindex="-1"></a><span class="in">    }</span></span>
+<span id="cb133-333"><a href="#cb133-333" aria-hidden="true" tabindex="-1"></a><span class="in">  })</span></span>
+<span id="cb133-334"><a href="#cb133-334" aria-hidden="true" tabindex="-1"></a><span class="in">  </span></span>
+<span id="cb133-335"><a href="#cb133-335" aria-hidden="true" tabindex="-1"></a><span class="in">  cat("Carregado em", tempo[3], "segundos\n")</span></span>
+<span id="cb133-336"><a href="#cb133-336" aria-hidden="true" tabindex="-1"></a><span class="in">  return(df)</span></span>
+<span id="cb133-337"><a href="#cb133-337" aria-hidden="true" tabindex="-1"></a><span class="in">}</span></span>
+<span id="cb133-338"><a href="#cb133-338" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb133-339"><a href="#cb133-339" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-340"><a href="#cb133-340" aria-hidden="true" tabindex="-1"></a><span class="fu">## Testando as Funções</span></span>
+<span id="cb133-341"><a href="#cb133-341" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-342"><a href="#cb133-342" aria-hidden="true" tabindex="-1"></a><span class="in">```{r testar-funcoes}</span></span>
+<span id="cb133-343"><a href="#cb133-343" aria-hidden="true" tabindex="-1"></a><span class="in">cat("TESTANDO FUNÇÕES REUTILIZÁVEIS:\n")</span></span>
+<span id="cb133-344"><a href="#cb133-344" aria-hidden="true" tabindex="-1"></a><span class="in">cat("=====================================\n")</span></span>
+<span id="cb133-345"><a href="#cb133-345" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-346"><a href="#cb133-346" aria-hidden="true" tabindex="-1"></a><span class="in"># Exemplo 1: Carregar dados mensais como tsibble diretamente</span></span>
+<span id="cb133-347"><a href="#cb133-347" aria-hidden="true" tabindex="-1"></a><span class="in">netflix_ts &lt;- carregar_parquet("netflix_monthly.parquet", </span></span>
+<span id="cb133-348"><a href="#cb133-348" aria-hidden="true" tabindex="-1"></a><span class="in">                              como_tsibble = TRUE, </span></span>
+<span id="cb133-349"><a href="#cb133-349" aria-hidden="true" tabindex="-1"></a><span class="in">                              key_col = "type", </span></span>
+<span id="cb133-350"><a href="#cb133-350" aria-hidden="true" tabindex="-1"></a><span class="in">                              index_col = "year_month")</span></span>
+<span id="cb133-351"><a href="#cb133-351" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-352"><a href="#cb133-352" aria-hidden="true" tabindex="-1"></a><span class="in"># Exemplo 2: Carregar JSON com conversão de datas</span></span>
+<span id="cb133-353"><a href="#cb133-353" aria-hidden="true" tabindex="-1"></a><span class="in">netflix_json_dates &lt;- carregar_json("netflix_monthly.json",</span></span>
+<span id="cb133-354"><a href="#cb133-354" aria-hidden="true" tabindex="-1"></a><span class="in">                                   colunas_data = "year_month")</span></span>
+<span id="cb133-355"><a href="#cb133-355" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-356"><a href="#cb133-356" aria-hidden="true" tabindex="-1"></a><span class="in">cat("Funções testadas com sucesso!\n")</span></span>
+<span id="cb133-357"><a href="#cb133-357" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb133-358"><a href="#cb133-358" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-359"><a href="#cb133-359" aria-hidden="true" tabindex="-1"></a><span class="fu">## Insights do Dataset Netflix</span></span>
+<span id="cb133-360"><a href="#cb133-360" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-361"><a href="#cb133-361" aria-hidden="true" tabindex="-1"></a><span class="in">```{r insights}</span></span>
+<span id="cb133-362"><a href="#cb133-362" aria-hidden="true" tabindex="-1"></a><span class="in">cat("INSIGHTS DO NETFLIX DATASET:\n")</span></span>
+<span id="cb133-363"><a href="#cb133-363" aria-hidden="true" tabindex="-1"></a><span class="in">cat("================================\n")</span></span>
+<span id="cb133-364"><a href="#cb133-364" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-365"><a href="#cb133-365" aria-hidden="true" tabindex="-1"></a><span class="in"># 1. Crescimento do catálogo</span></span>
+<span id="cb133-366"><a href="#cb133-366" aria-hidden="true" tabindex="-1"></a><span class="in">growth &lt;- ts_netflix_parquet %&gt;%</span></span>
+<span id="cb133-367"><a href="#cb133-367" aria-hidden="true" tabindex="-1"></a><span class="in">  group_by(year = year(year_month)) %&gt;%</span></span>
+<span id="cb133-368"><a href="#cb133-368" aria-hidden="true" tabindex="-1"></a><span class="in">  summarise(total_added = sum(total_titles)) %&gt;%</span></span>
+<span id="cb133-369"><a href="#cb133-369" aria-hidden="true" tabindex="-1"></a><span class="in">  filter(year &gt;= 2015) %&gt;%</span></span>
+<span id="cb133-370"><a href="#cb133-370" aria-hidden="true" tabindex="-1"></a><span class="in">  arrange(desc(total_added))</span></span>
+<span id="cb133-371"><a href="#cb133-371" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-372"><a href="#cb133-372" aria-hidden="true" tabindex="-1"></a><span class="in">cat("Anos com mais adições (2015+):\n")</span></span>
+<span id="cb133-373"><a href="#cb133-373" aria-hidden="true" tabindex="-1"></a><span class="in">print(head(growth, 5))</span></span>
+<span id="cb133-374"><a href="#cb133-374" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-375"><a href="#cb133-375" aria-hidden="true" tabindex="-1"></a><span class="in"># 2. Comparação Movies vs TV Shows</span></span>
+<span id="cb133-376"><a href="#cb133-376" aria-hidden="true" tabindex="-1"></a><span class="in">comparison &lt;- df_netflix_parquet[!is.na(date_added) &amp; year(date_added) &gt;= 2018, </span></span>
+<span id="cb133-377"><a href="#cb133-377" aria-hidden="true" tabindex="-1"></a><span class="in">                                .(count = .N), </span></span>
+<span id="cb133-378"><a href="#cb133-378" aria-hidden="true" tabindex="-1"></a><span class="in">                                by = .(type, year = year(date_added))]</span></span>
+<span id="cb133-379"><a href="#cb133-379" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-380"><a href="#cb133-380" aria-hidden="true" tabindex="-1"></a><span class="in">cat("\n Movies vs TV Shows (2018+):\n")</span></span>
+<span id="cb133-381"><a href="#cb133-381" aria-hidden="true" tabindex="-1"></a><span class="in">print(comparison)</span></span>
+<span id="cb133-382"><a href="#cb133-382" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-383"><a href="#cb133-383" aria-hidden="true" tabindex="-1"></a><span class="in"># 3. Países mais ativos</span></span>
+<span id="cb133-384"><a href="#cb133-384" aria-hidden="true" tabindex="-1"></a><span class="in">active_countries &lt;- df_netflix_parquet[!is.na(country) &amp; !is.na(date_added) &amp; year(date_added) &gt;= 2020, </span></span>
+<span id="cb133-385"><a href="#cb133-385" aria-hidden="true" tabindex="-1"></a><span class="in">                                      .(titles = .N), </span></span>
+<span id="cb133-386"><a href="#cb133-386" aria-hidden="true" tabindex="-1"></a><span class="in">                                      by = country][order(-titles)][1:10]</span></span>
+<span id="cb133-387"><a href="#cb133-387" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-388"><a href="#cb133-388" aria-hidden="true" tabindex="-1"></a><span class="in">cat("\n Top 10 Países (2020+):\n")</span></span>
+<span id="cb133-389"><a href="#cb133-389" aria-hidden="true" tabindex="-1"></a><span class="in">print(active_countries)</span></span>
+<span id="cb133-390"><a href="#cb133-390" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb133-391"><a href="#cb133-391" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-392"><a href="#cb133-392" aria-hidden="true" tabindex="-1"></a><span class="fu">## Conclusões</span></span>
+<span id="cb133-393"><a href="#cb133-393" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-394"><a href="#cb133-394" aria-hidden="true" tabindex="-1"></a><span class="fu">### Principais Descobertas:</span></span>
+<span id="cb133-395"><a href="#cb133-395" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-396"><a href="#cb133-396" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>**Performance**: Parquet consistentemente supera JSON em velocidade de carregamento</span>
+<span id="cb133-397"><a href="#cb133-397" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>**Espaço**: Parquet é significativamente mais compacto que JSON</span>
+<span id="cb133-398"><a href="#cb133-398" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>**Dataset Netflix**: Contém milhares de títulos com rica informação temporal</span>
+<span id="cb133-399"><a href="#cb133-399" aria-hidden="true" tabindex="-1"></a><span class="ss">4. </span>**Tsibble**: Ideal para análises de tendências temporais no catálogo</span>
+<span id="cb133-400"><a href="#cb133-400" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-401"><a href="#cb133-401" aria-hidden="true" tabindex="-1"></a><span class="fu">### Recomendações:</span></span>
+<span id="cb133-402"><a href="#cb133-402" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-403"><a href="#cb133-403" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Use Parquet** para datasets do Kaggle grandes (&gt; 1MB)</span>
+<span id="cb133-404"><a href="#cb133-404" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Use agregações mensais** para análises temporais eficientes</span>
+<span id="cb133-405"><a href="#cb133-405" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Configure a API do Kaggle** para downloads automáticos</span>
+<span id="cb133-406"><a href="#cb133-406" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Explore tsibble** para insights de séries temporais</span>
+<span id="cb133-407"><a href="#cb133-407" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-408"><a href="#cb133-408" aria-hidden="true" tabindex="-1"></a><span class="fu">## Informações da Sessão</span></span>
+<span id="cb133-409"><a href="#cb133-409" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb133-410"><a href="#cb133-410" aria-hidden="true" tabindex="-1"></a><span class="in">```{r sessao}</span></span>
+<span id="cb133-411"><a href="#cb133-411" aria-hidden="true" tabindex="-1"></a><span class="in">sessionInfo()</span></span>
+<span id="cb133-412"><a href="#cb133-412" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span></code><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></pre></div>
+</div></div></div></div></div>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

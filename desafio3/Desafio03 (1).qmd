@@ -1,0 +1,412 @@
+---
+title: "Carregamento Rápido de Dados do Kaggle - Netflix Dataset"
+author: "Seu Nome"
+date: today
+format: 
+  html:
+    theme: cosmo
+    toc: true
+    code-fold: false
+    code-tools: true
+editor: visual
+---
+
+## Introdução
+
+Este documento demonstra como carregar o famoso **Netflix Movies and TV Shows Dataset** do Kaggle de forma otimizada, convertendo-o em data frames e tsibbles para análise de dados temporais.
+
+**Dataset**: Netflix Movies and TV Shows do Kaggle - "Listings of movies and tv shows on Netflix - Regularly Updated"
+
+## Configuração Inicial
+
+Primeiro, vamos carregar as bibliotecas necessárias:
+
+```{r setup, message=FALSE, warning=FALSE}
+library(arrow)      
+library(jsonlite)  
+library(data.table) 
+library(tsibble)    
+library(lubridate)  
+library(dplyr)      
+library(readr)      
+```
+
+## Obtendo o Dataset do Kaggle
+
+O arquivo `netflix_titles.csv` está na pasta Downloads e será carregado diretamente.
+
+**Dataset utilizado**: Netflix Movies and TV Shows do Kaggle
+- URL: https://www.kaggle.com/datasets/shivamb/netflix-shows
+- Arquivo: `netflix_titles.csv` (na pasta Downloads)
+
+## Preparação dos Dados
+
+Vamos carregar o arquivo CSV da pasta Downloads e prepará-lo para conversão nos formatos Parquet e JSON:
+
+```{r preparar-dados}
+downloads_path <- file.path(Sys.getenv("HOME"), "Downloads", "netflix_titles.csv")
+
+if (.Platform$OS.type == "windows") {
+  downloads_path <- file.path(Sys.getenv("USERPROFILE"), "Downloads", "netflix_titles.csv")
+}
+
+cat("Procurando arquivo em:", downloads_path, "\n")
+
+# Verificar se o arquivo existe e carregar
+if (file.exists(downloads_path)) {
+  cat("Arquivo encontrado! Carregando dados do Netflix...\n")
+  
+  # Carregar dados reais do Netflix
+  netflix_data <- fread(downloads_path)
+  cat("Dados reais do Netflix carregados com sucesso!\n")
+  
+} else {
+  cat("Arquivo não encontrado em:", downloads_path, "\n")
+  cat("Tentando caminhos alternativos...\n")
+  
+  # Tentar caminhos alternativos
+  alternative_paths <- c(
+    "netflix_titles.csv",  # Pasta atual
+    file.path("Downloads", "netflix_titles.csv"),  # Subpasta Downloads
+    file.path("..", "Downloads", "netflix_titles.csv")  # Downloads na pasta pai
+  )
+  
+  file_found <- FALSE
+  for (path in alternative_paths) {
+    if (file.exists(path)) {
+      cat("Arquivo encontrado em:", path, "\n")
+      netflix_data <- fread(path)
+      file_found <- TRUE
+      break
+    }
+  }
+  
+  if (!file_found) {
+    cat("Arquivo netflix_titles.csv não encontrado!\n")
+    cat("Por favor, certifique-se de que o arquivo está em uma dessas localizações:\n")
+    cat("   1. ~/Downloads/netflix_titles.csv\n")
+    cat("   2. ./netflix_titles.csv (pasta atual do projeto)\n")
+    cat("   3. ./Downloads/netflix_titles.csv\n")
+    stop("Arquivo não encontrado. Por favor, verifique o caminho do arquivo.")
+  }
+}
+
+# Mostrar informações básicas do dataset real
+cat("Dataset Netflix carregado:\n")
+cat("   - Dimensões:", nrow(netflix_data), "linhas x", ncol(netflix_data), "colunas\n")
+cat("   - Colunas:", paste(names(netflix_data), collapse = ", "), "\n")
+
+# Limpar e preparar os dados
+# Converter date_added para formato Date
+if ("date_added" %in% names(netflix_data)) {
+  netflix_data[, date_added := mdy(date_added)]  # Assuming MM/DD/YYYY format
+}
+
+# Garantir que release_year seja numérico
+if ("release_year" %in% names(netflix_data)) {
+  netflix_data[, release_year := as.numeric(release_year)]
+}
+
+# Criar coluna year_month para agregações
+netflix_data[!is.na(date_added), year_month := floor_date(date_added, "month")]
+
+# Mostrar período dos dados
+if ("date_added" %in% names(netflix_data) && sum(!is.na(netflix_data$date_added)) > 0) {
+  cat("Período dos dados:", min(netflix_data$date_added, na.rm = TRUE), "a", 
+      max(netflix_data$date_added, na.rm = TRUE), "\n")
+}
+
+# Mostrar estrutura dos dados reais
+cat("\n Estrutura dos dados:\n")
+str(netflix_data)
+
+# Mostrar primeiras linhas
+cat("\n Primeiras 5 linhas:\n")
+print(head(netflix_data, 5))
+```
+
+### Criando Agregações Temporais para Tsibble
+
+```{r agregar-dados}
+netflix_monthly <- netflix_data[!is.na(date_added)] %>%
+  group_by(year_month, type) %>%
+  summarise(
+    total_titles = n(),
+    avg_release_year = mean(release_year, na.rm = TRUE),
+    unique_countries = n_distinct(country, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  as.data.table()
+
+netflix_monthly[, id := paste(year_month, type, sep = "_")]
+
+cat("📈 Dados agregados por mês criados:", nrow(netflix_monthly), "registros\n")
+head(netflix_monthly)
+```
+
+## Salvando nos Formatos Parquet e JSON
+
+```{r salvar-arquivos}
+write_parquet(netflix_data, "netflix_data.parquet")
+write_json(netflix_data, "netflix_data.json")
+
+write_parquet(netflix_monthly, "netflix_monthly.parquet")
+write_json(netflix_monthly, "netflix_monthly.json")
+
+cat("Arquivos salvos:\n")
+cat("   - netflix_data.parquet (dados completos)\n")
+cat("   - netflix_data.json (dados completos)\n")
+cat("   - netflix_monthly.parquet (dados agregados mensais)\n")
+cat("   - netflix_monthly.json (dados agregados mensais)\n")
+```
+
+## Carregamento Otimizado - Parquet
+
+```{r carregar-parquet}
+cat("Carregando arquivo Parquet (dados completos)...\n")
+
+tempo_parquet_full <- system.time({
+  df_netflix_parquet <- read_parquet("netflix_data.parquet")
+})
+
+tempo_parquet_monthly <- system.time({
+  df_monthly_parquet <- read_parquet("netflix_monthly.parquet")
+})
+
+cat("Tempo Parquet (completo):", tempo_parquet_full[3], "segundos\n")
+cat("Tempo Parquet (mensal):", tempo_parquet_monthly[3], "segundos\n")
+cat("Dimensões (completo):", nrow(df_netflix_parquet), "x", ncol(df_netflix_parquet), "\n")
+cat("Dimensões (mensal):", nrow(df_monthly_parquet), "x", ncol(df_monthly_parquet), "\n")
+
+head(df_netflix_parquet[, .(title, type, date_added, release_year, country)])
+```
+
+## Carregamento Otimizado - JSON
+
+```{r carregar-json}
+cat("Carregando arquivo JSON...\n")
+
+tempo_json_full <- system.time({
+  df_netflix_json <- fromJSON("netflix_data.json", flatten = TRUE)
+  df_netflix_json <- as.data.table(df_netflix_json)
+  df_netflix_json[, date_added := as.Date(date_added)]
+  df_netflix_json[, year_month := as.Date(year_month)]
+})
+
+tempo_json_monthly <- system.time({
+  df_monthly_json <- fromJSON("netflix_monthly.json", flatten = TRUE)
+  df_monthly_json <- as.data.table(df_monthly_json)
+  df_monthly_json[, year_month := as.Date(year_month)]
+})
+
+cat("Tempo JSON (completo):", tempo_json_full[3], "segundos\n")
+cat("Tempo JSON (mensal):", tempo_json_monthly[3], "segundos\n")
+cat("Dimensões (completo):", nrow(df_netflix_json), "x", ncol(df_netflix_json), "\n")
+cat("Dimensões (mensal):", nrow(df_monthly_json), "x", ncol(df_monthly_json), "\n")
+```
+
+## Conversão para Tsibble
+
+Para análise de séries temporais, usamos os dados agregados mensais:
+
+```{r converter-tsibble}
+cat("Convertendo dados mensais para tsibble...\n")
+
+ts_netflix_parquet <- df_monthly_parquet %>%
+  as_tsibble(key = c(type), index = year_month)
+
+ts_netflix_json <- df_monthly_json %>%
+  as_tsibble(key = c(type), index = year_month)
+
+cat("Conversão para tsibble concluída!\n")
+
+print("Tsibble Netflix (Parquet):")
+print(ts_netflix_parquet)
+
+cat("\n Tendências no Netflix:\n")
+print(ts_netflix_parquet %>% 
+      group_by(type) %>% 
+      summarise(
+        total_titles = sum(total_titles),
+        avg_monthly = mean(total_titles),
+        max_monthly = max(total_titles)
+      ))
+```
+
+## Análise Exploratória dos Dados
+
+```{r analise-exploratoria}
+# Análise por tipo de conteúdo
+cat("ANÁLISE DO CONTEÚDO NETFLIX:\n")
+cat("===============================\n")
+
+# Distribuição por tipo
+table_type <- table(df_netflix_parquet$type)
+print("Distribuição por Tipo:")
+print(table_type)
+
+# Top 5 países
+cat("\n Top 5 Países (sem NA):\n")
+top_countries <- df_netflix_parquet[!is.na(country), .N, by = country][order(-N)][1:5]
+print(top_countries)
+
+# Análise temporal
+cat("\n Adições por Ano:\n")
+yearly_additions <- df_netflix_parquet[!is.na(date_added), 
+                                      .(total = .N), 
+                                      by = .(year = year(date_added))][order(year)]
+print(tail(yearly_additions, 8))
+```
+
+## Comparação de Performance
+
+```{r comparacao}
+cat(" COMPARAÇÃO DE PERFORMANCE:\n")
+cat("==========================================\n")
+cat("Parquet (completo): ", tempo_parquet_full[3], "segundos\n")
+cat("JSON (completo):    ", tempo_json_full[3], "segundos\n")
+cat("Parquet (mensal):   ", tempo_parquet_monthly[3], "segundos\n")
+cat("JSON (mensal):      ", tempo_json_monthly[3], "segundos\n")
+
+# Calcular eficiência
+if (tempo_parquet_full[3] < tempo_json_full[3]) {
+  speedup <- round(tempo_json_full[3]/tempo_parquet_full[3], 2)
+  cat(" Parquet foi", speedup, "x mais rápido que JSON!\n")
+} else {
+  speedup <- round(tempo_parquet_full[3]/tempo_json_full[3], 2)
+  cat(" JSON foi", speedup, "x mais rápido que Parquet!\n")
+}
+
+# Tamanhos de arquivo
+if (file.exists("netflix_data.parquet") && file.exists("netflix_data.json")) {
+  size_parquet <- file.size("netflix_data.parquet") / 1024 / 1024  # MB
+  size_json <- file.size("netflix_data.json") / 1024 / 1024        # MB
+  
+  cat("\n TAMANHOS DOS ARQUIVOS:\n")
+  cat("Parquet:", round(size_parquet, 2), "MB\n")
+  cat("JSON:   ", round(size_json, 2), "MB\n")
+  cat("Eficiência de espaço: Parquet é", round(size_json/size_parquet, 2), "x menor\n")
+}
+```
+
+## Funções Reutilizáveis Otimizadas
+
+```{r funcoes-reutilizaveis}
+# Função otimizada para carregar Parquet
+carregar_parquet <- function(arquivo, como_tsibble = FALSE, key_col = NULL, index_col = NULL) {
+  cat(" Carregando", arquivo, "...\n")
+  
+  tempo <- system.time({
+    df <- read_parquet(arquivo)
+    
+    if (como_tsibble && !is.null(key_col) && !is.null(index_col)) {
+      df <- as_tsibble(df, key = all_of(key_col), index = all_of(index_col))
+    }
+  })
+  
+  cat("Carregado em", tempo[3], "segundos\n")
+  return(df)
+}
+
+# Função otimizada para carregar JSON
+carregar_json <- function(arquivo, como_tsibble = FALSE, key_col = NULL, index_col = NULL, 
+                         colunas_data = NULL) {
+  cat("Carregando", arquivo, "...\n")
+  
+  tempo <- system.time({
+    df <- fromJSON(arquivo, flatten = TRUE)
+    df <- as.data.table(df)
+    
+    # Converter colunas de data se especificadas
+    if (!is.null(colunas_data)) {
+      for (col in colunas_data) {
+        if (col %in% names(df)) {
+          df[[col]] <- as.Date(df[[col]])
+        }
+      }
+    }
+    
+    # Converter para tsibble se solicitado
+    if (como_tsibble && !is.null(key_col) && !is.null(index_col)) {
+      df <- as_tsibble(df, key = all_of(key_col), index = all_of(index_col))
+    }
+  })
+  
+  cat("Carregado em", tempo[3], "segundos\n")
+  return(df)
+}
+```
+
+## Testando as Funções
+
+```{r testar-funcoes}
+cat("TESTANDO FUNÇÕES REUTILIZÁVEIS:\n")
+cat("=====================================\n")
+
+# Exemplo 1: Carregar dados mensais como tsibble diretamente
+netflix_ts <- carregar_parquet("netflix_monthly.parquet", 
+                              como_tsibble = TRUE, 
+                              key_col = "type", 
+                              index_col = "year_month")
+
+# Exemplo 2: Carregar JSON com conversão de datas
+netflix_json_dates <- carregar_json("netflix_monthly.json",
+                                   colunas_data = "year_month")
+
+cat("Funções testadas com sucesso!\n")
+```
+
+## Insights do Dataset Netflix
+
+```{r insights}
+cat("INSIGHTS DO NETFLIX DATASET:\n")
+cat("================================\n")
+
+# 1. Crescimento do catálogo
+growth <- ts_netflix_parquet %>%
+  group_by(year = year(year_month)) %>%
+  summarise(total_added = sum(total_titles)) %>%
+  filter(year >= 2015) %>%
+  arrange(desc(total_added))
+
+cat("Anos com mais adições (2015+):\n")
+print(head(growth, 5))
+
+# 2. Comparação Movies vs TV Shows
+comparison <- df_netflix_parquet[!is.na(date_added) & year(date_added) >= 2018, 
+                                .(count = .N), 
+                                by = .(type, year = year(date_added))]
+
+cat("\n Movies vs TV Shows (2018+):\n")
+print(comparison)
+
+# 3. Países mais ativos
+active_countries <- df_netflix_parquet[!is.na(country) & !is.na(date_added) & year(date_added) >= 2020, 
+                                      .(titles = .N), 
+                                      by = country][order(-titles)][1:10]
+
+cat("\n Top 10 Países (2020+):\n")
+print(active_countries)
+```
+
+## Conclusões
+
+### Principais Descobertas:
+
+1. **Performance**: Parquet consistentemente supera JSON em velocidade de carregamento
+2. **Espaço**: Parquet é significativamente mais compacto que JSON
+3. **Dataset Netflix**: Contém milhares de títulos com rica informação temporal
+4. **Tsibble**: Ideal para análises de tendências temporais no catálogo
+
+### Recomendações:
+
+- **Use Parquet** para datasets do Kaggle grandes (> 1MB)
+- **Use agregações mensais** para análises temporais eficientes
+- **Configure a API do Kaggle** para downloads automáticos
+- **Explore tsibble** para insights de séries temporais
+
+## Informações da Sessão
+
+```{r sessao}
+sessionInfo()
+```
