@@ -1,0 +1,492 @@
+---
+title: "Análise do Banco de Dados UW-Madison - Disciplinas de Estatística"
+author: "Análise Automatizada"
+date: "`r format(Sys.time(), '%d de %B de %Y às %H:%M:%S')`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    theme: flatly
+  pdf_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+# Definir locale para português (se disponível)
+tryCatch({
+  Sys.setlocale("LC_TIME", "pt_BR.UTF-8")
+}, error = function(e) {
+  # Se não conseguir definir português, usar inglês
+  Sys.setlocale("LC_TIME", "C")
+})
+```
+
+## Informações de Geração
+
+**Documento gerado em:** `r format(Sys.time(), '%d de %B de %Y às %H:%M:%S (%Z)')`  
+**Sistema:** `r Sys.info()["sysname"]`  
+**Versão do R:** `r R.version.string`  
+
+---
+
+## Introdução
+
+Este documento apresenta a análise **completamente corrigida** do banco de dados SQLite da UW-Madison, 
+focando em disciplinas de Estatística. Todas as correções de sintaxe foram aplicadas.
+
+## Configuração Inicial
+```{r}
+library(RSQLite)
+library(DBI)
+library(knitr)
+
+# Registrar início da análise
+inicio_analise <- Sys.time()
+cat("Análise iniciada em:", format(inicio_analise, '%d/%m/%Y às %H:%M:%S'), "\n")
+```
+
+# Verificando e extraindo o arquivo ZIP se necessário
+```{r}
+if (!file.exists("archive.zip")) {
+  stop("Arquivo archive.zip não encontrado. Por favor, faça o download primeiro.")
+}
+
+if (!file.exists("uwmadison.sqlite3")) {
+  cat("Extraindo arquivo ZIP...\n")
+  unzip("archive.zip", exdir = ".")
+  
+  arquivos_sqlite <- list.files(pattern = "*.sqlite3|*.db", recursive = TRUE)
+  if (length(arquivos_sqlite) > 0 && !"uwmadison.sqlite3" %in% arquivos_sqlite) {
+    file.copy(arquivos_sqlite[1], "uwmadison.sqlite3")
+  }
+}
+
+cat("Arquivo SQLite pronto!\n")
+cat("Timestamp:", format(Sys.time(), '%H:%M:%S'), "\n")
+```
+
+## Diagnóstico da Estrutura
+
+```{r}
+conn <- dbConnect(RSQLite::SQLite(), "uwmadison.sqlite3")
+
+cat("=== DIAGNÓSTICO AUTOMÁTICO ===\n")
+cat("Executado em:", format(Sys.time(), '%d/%m/%Y às %H:%M:%S'), "\n")
+tabelas <- dbListTables(conn)
+cat("Tabelas disponíveis:", paste(tabelas, collapse = ", "), "\n")
+
+diagnosticar_tabela <- function(nome_tabela) {
+  if (!nome_tabela %in% tabelas) {
+    cat(sprintf("Tabela '%s' não encontrada\n", nome_tabela))
+    return(NULL)
+  }
+  
+  estrutura <- dbGetQuery(conn, sprintf("PRAGMA table_info(%s)", nome_tabela))
+  total <- dbGetQuery(conn, sprintf("SELECT COUNT(*) as total FROM %s", nome_tabela))
+  
+  cat(sprintf("\n--- %s ---\n", toupper(nome_tabela)))
+  cat(sprintf("Colunas: %s\n", paste(estrutura$name, collapse = ", ")))
+  cat(sprintf("Registros: %d\n", total$total))
+  
+  pk <- estrutura[estrutura$pk == 1, "name"]
+  if (length(pk) > 0) {
+    cat(sprintf("Chave primária: %s\n", pk[1]))
+  }
+  
+  return(list(estrutura = estrutura, total = total$total, pk = if(length(pk) > 0) pk[1] else NULL))
+}
+
+estruturas <- list()
+tabelas_principais <- c("subjects", "instructors", "courses", "course_offerings", 
+                       "grade_distributions", "teachings", "subject_memberships", "sections")
+
+for (tab in tabelas_principais) {
+  estruturas[[tab]] <- diagnosticar_tabela(tab)
+}
+
+# A chave primária de course_offerings é 'uuid' (corrigido)
+co_key <- "uuid"
+cat(sprintf("\n Usando chave para course_offerings: %s\n", co_key))
+
+# Testar conectividade das tabelas
+cat("\n=== TESTE DE CONECTIVIDADE ===\n")
+test_query <- sprintf("
+SELECT COUNT(*) as total
+FROM course_offerings co
+INNER JOIN subject_memberships sm ON co.uuid = sm.course_offering_uuid
+LIMIT 1
+")
+
+tryCatch({
+  test_result <- dbGetQuery(conn, test_query)
+  cat(sprintf("Conectividade OK: %d registros vinculados\n", test_result$total))
+}, error = function(e) {
+  cat(sprintf("Erro de conectividade: %s\n", e$message))
+})
+
+cat("Diagnóstico concluído em:", format(Sys.time(), '%H:%M:%S'), "\n")
+```
+
+## Investigação de Códigos de Estatística
+
+```{r}
+cat("=== PROCURANDO CÓDIGOS DE ESTATÍSTICA ===\n")
+cat("Timestamp:", format(Sys.time(), '%H:%M:%S'), "\n")
+
+stat_variants <- dbGetQuery(conn, "
+SELECT code, name, abbreviation, 
+       (SELECT COUNT(*) FROM subject_memberships sm WHERE sm.subject_code = s.code) as oferecimentos
+FROM subjects s
+WHERE UPPER(s.name) LIKE '%STAT%' 
+   OR UPPER(s.abbreviation) LIKE '%STAT%'
+   OR s.code = 'STAT'
+ORDER BY oferecimentos DESC
+")
+
+cat("Códigos relacionados a Estatística:\n")
+print(stat_variants)
+
+if (nrow(stat_variants) > 0 && stat_variants$oferecimentos[1] > 0) {
+  codigo_estatistica <- stat_variants$code[1]
+  cat(sprintf("\n Usando código: %s (%s) com %d oferecimentos\n", 
+              codigo_estatistica, stat_variants$name[1], stat_variants$oferecimentos[1]))
+} else {
+  cat("Nenhum código específico de estatística encontrado.\n")
+  cat("vamos usar o código mais comum para demonstração:\n")
+  
+  top_codes <- dbGetQuery(conn, "
+  SELECT sm.subject_code, s.name, COUNT(*) as total
+  FROM subject_memberships sm
+  LEFT JOIN subjects s ON sm.subject_code = s.code
+  GROUP BY sm.subject_code, s.name
+  ORDER BY total DESC
+  LIMIT 5
+  ")
+  print(top_codes)
+  
+  if (nrow(top_codes) > 0) {
+    codigo_estatistica <- top_codes$subject_code[1]
+    cat(sprintf("Usando código mais popular para demonstração: %s\n", codigo_estatistica))
+  }
+}
+
+cat("Busca concluída em:", format(Sys.time(), '%H:%M:%S'), "\n")
+```
+
+## Atividade 1: Professores de Estatística
+
+```{r}
+cat("=== PROFESSORES DE ESTATÍSTICA ===\n")
+cat("Iniciado em:", format(Sys.time(), '%H:%M:%S'), "\n")
+
+if (exists("codigo_estatistica")) {
+  # Query corrigida com JOINs apropriados
+  query_professores <- sprintf("
+  SELECT DISTINCT 
+      i.name as professor_nome, 
+      i.id as professor_id,
+      COUNT(DISTINCT co.uuid) as num_oferecimentos
+  FROM instructors i
+  INNER JOIN teachings t ON i.id = t.instructor_id
+  INNER JOIN sections s ON t.section_uuid = s.uuid  
+  INNER JOIN course_offerings co ON s.course_offering_uuid = co.uuid
+  INNER JOIN subject_memberships sm ON co.uuid = sm.course_offering_uuid
+  WHERE sm.subject_code = '%s'
+  GROUP BY i.name, i.id
+  ORDER BY num_oferecimentos DESC, i.name
+  ", codigo_estatistica)
+  
+  cat("Query sendo executada:\n")
+  cat(query_professores, "\n\n")
+  
+  tryCatch({
+    professores_stat <- dbGetQuery(conn, query_professores)
+    
+    if (nrow(professores_stat) > 0) {
+      cat("SUCESSO! Professores encontrados:\n")
+      kable(professores_stat)
+      cat(sprintf("\n Total de professores: %d\n", nrow(professores_stat)))
+    } else {
+      cat("Nenhum professor encontrado para o código selecionado.\n")
+    }
+  }, error = function(e) {
+    cat(sprintf("Erro na query: %s\n", e$message))
+    
+    # Query alternativa mais simples
+    cat("Tentando query alternativa...\n")
+    query_alt <- "
+    SELECT DISTINCT i.name as professor_nome, i.id as professor_id
+    FROM instructors i
+    INNER JOIN teachings t ON i.id = t.instructor_id
+    LIMIT 10
+    "
+    
+    result_alt <- dbGetQuery(conn, query_alt)
+    if (nrow(result_alt) > 0) {
+      cat("Estrutura básica OK. Problema está nos JOINs específicos.\n")
+      kable(result_alt)
+    }
+  })
+} else {
+  cat("Código de estatística não definido.\n")
+}
+
+cat("Atividade 1 concluída em:", format(Sys.time(), '%H:%M:%S'), "\n")
+```
+
+## Atividade 2: Análise de GPA
+
+```{r}
+cat("=== ANÁLISE DE GPA ===\n")
+cat("Iniciado em:", format(Sys.time(), '%H:%M:%S'), "\n")
+
+if (exists("codigo_estatistica")) {
+  # Query corrigida: gd.course_offering_uuid = co.uuid
+  test_grade_data <- dbGetQuery(conn, sprintf("
+  SELECT COUNT(*) as total
+  FROM grade_distributions gd
+  INNER JOIN course_offerings co ON gd.course_offering_uuid = co.uuid
+  INNER JOIN subject_memberships sm ON co.uuid = sm.course_offering_uuid  
+  WHERE sm.subject_code = '%s'
+  ", codigo_estatistica))
+  
+  cat(sprintf("Oferecimentos com dados de notas para %s: %d\n", codigo_estatistica, test_grade_data$total))
+  
+  if (test_grade_data$total > 0) {
+    # Query principal corrigida
+    query_gpa <- sprintf("
+    SELECT 
+        c.name as disciplina,
+        c.number as numero,
+        co.term_code,
+        co.name as oferecimento_nome,
+        CAST(COALESCE(gd.a_count, 0) AS INTEGER) as a_count,
+        CAST(COALESCE(gd.ab_count, 0) AS INTEGER) as ab_count,
+        CAST(COALESCE(gd.b_count, 0) AS INTEGER) as b_count,
+        CAST(COALESCE(gd.bc_count, 0) AS INTEGER) as bc_count,
+        CAST(COALESCE(gd.c_count, 0) AS INTEGER) as c_count,
+        CAST(COALESCE(gd.d_count, 0) AS INTEGER) as d_count,
+        CAST(COALESCE(gd.f_count, 0) AS INTEGER) as f_count,
+        (CAST(COALESCE(gd.a_count, 0) AS INTEGER) + 
+         CAST(COALESCE(gd.ab_count, 0) AS INTEGER) + 
+         CAST(COALESCE(gd.b_count, 0) AS INTEGER) + 
+         CAST(COALESCE(gd.bc_count, 0) AS INTEGER) + 
+         CAST(COALESCE(gd.c_count, 0) AS INTEGER) + 
+         CAST(COALESCE(gd.d_count, 0) AS INTEGER) + 
+         CAST(COALESCE(gd.f_count, 0) AS INTEGER)) as total_estudantes,
+        CASE 
+          WHEN (CAST(COALESCE(gd.a_count, 0) AS INTEGER) + 
+                CAST(COALESCE(gd.ab_count, 0) AS INTEGER) + 
+                CAST(COALESCE(gd.b_count, 0) AS INTEGER) + 
+                CAST(COALESCE(gd.bc_count, 0) AS INTEGER) + 
+                CAST(COALESCE(gd.c_count, 0) AS INTEGER) + 
+                CAST(COALESCE(gd.d_count, 0) AS INTEGER) + 
+                CAST(COALESCE(gd.f_count, 0) AS INTEGER)) > 0
+          THEN ROUND(
+              (CAST(COALESCE(gd.a_count, 0) AS REAL) * 4.0 + 
+               CAST(COALESCE(gd.ab_count, 0) AS REAL) * 3.5 + 
+               CAST(COALESCE(gd.b_count, 0) AS REAL) * 3.0 + 
+               CAST(COALESCE(gd.bc_count, 0) AS REAL) * 2.5 + 
+               CAST(COALESCE(gd.c_count, 0) AS REAL) * 2.0 + 
+               CAST(COALESCE(gd.d_count, 0) AS REAL) * 1.0 + 
+               CAST(COALESCE(gd.f_count, 0) AS REAL) * 0.0) / 
+              (CAST(COALESCE(gd.a_count, 0) AS REAL) + 
+               CAST(COALESCE(gd.ab_count, 0) AS REAL) + 
+               CAST(COALESCE(gd.b_count, 0) AS REAL) + 
+               CAST(COALESCE(gd.bc_count, 0) AS REAL) + 
+               CAST(COALESCE(gd.c_count, 0) AS REAL) + 
+               CAST(COALESCE(gd.d_count, 0) AS REAL) + 
+               CAST(COALESCE(gd.f_count, 0) AS REAL)), 3)
+          ELSE NULL
+        END as gpa_medio
+    FROM grade_distributions gd
+    INNER JOIN course_offerings co ON gd.course_offering_uuid = co.uuid
+    INNER JOIN courses c ON co.course_uuid = c.uuid
+    INNER JOIN subject_memberships sm ON co.uuid = sm.course_offering_uuid
+    WHERE sm.subject_code = '%s'
+      AND (CAST(COALESCE(gd.a_count, 0) AS INTEGER) + 
+           CAST(COALESCE(gd.ab_count, 0) AS INTEGER) + 
+           CAST(COALESCE(gd.b_count, 0) AS INTEGER) + 
+           CAST(COALESCE(gd.bc_count, 0) AS INTEGER) + 
+           CAST(COALESCE(gd.c_count, 0) AS INTEGER) + 
+           CAST(COALESCE(gd.d_count, 0) AS INTEGER) + 
+           CAST(COALESCE(gd.f_count, 0) AS INTEGER)) > 0
+    ORDER BY gpa_medio ASC
+    ", codigo_estatistica)
+    
+    tryCatch({
+      dados_gpa <- dbGetQuery(conn, query_gpa)
+      
+      if (nrow(dados_gpa) > 0) {
+        cat("Dados de GPA calculados com sucesso!\n")
+        cat(sprintf("Total de oferecimentos analisados: %d\n", nrow(dados_gpa)))
+        
+        cat("\nPrimeiros resultados (ordenados por dificuldade):\n")
+        kable(head(dados_gpa, 10))
+        
+        gpas_validos <- dados_gpa$gpa_medio[!is.na(dados_gpa$gpa_medio)]
+        if (length(gpas_validos) > 0) {
+          idx_min <- which.min(dados_gpa$gpa_medio)
+          idx_max <- which.max(dados_gpa$gpa_medio)
+          
+          cat("\nEstatísticas de GPA:\n")
+          cat(sprintf("• GPA mais baixo: %.3f\n", min(gpas_validos)))
+          cat(sprintf("• GPA mais alto: %.3f\n", max(gpas_validos)))
+          cat(sprintf("• GPA médio: %.3f\n", mean(gpas_validos)))
+          
+          cat(sprintf("\n DISCIPLINA MAIS DIFÍCIL: %s %s (GPA: %.3f)\n",
+                      dados_gpa$numero[idx_min], dados_gpa$disciplina[idx_min], dados_gpa$gpa_medio[idx_min]))
+          cat(sprintf("DISCIPLINA MAIS FÁCIL: %s %s (GPA: %.3f)\n",
+                      dados_gpa$numero[idx_max], dados_gpa$disciplina[idx_max], dados_gpa$gpa_medio[idx_max]))
+        }
+      } else {
+        cat("Nenhum dado de GPA encontrado.\n")
+      }
+    }, error = function(e) {
+      cat(sprintf("Erro na análise GPA: %s\n", e$message))
+    })
+  } else {
+    cat("Nenhum oferecimento com dados de notas encontrado.\n")
+  }
+} else {
+  cat("Código de estatística não definido.\n")
+}
+
+cat("Atividade 2 concluída em:", format(Sys.time(), '%H:%M:%S'), "\n")
+```
+
+## Atividade 3: Ranking de Professores por GPA
+
+```{r}
+cat("=== RANKING DE PROFESSORES POR GPA ===\n")
+cat("Iniciado em:", format(Sys.time(), '%H:%M:%S'), "\n")
+
+if (exists("codigo_estatistica")) {
+  
+  query_ranking <- sprintf("
+  SELECT 
+      i.name AS professor_nome,
+      COUNT(DISTINCT gd.course_offering_uuid) AS num_oferecimentos,
+      ROUND(AVG(
+        CASE 
+          WHEN (COALESCE(gd.a_count,0) + COALESCE(gd.ab_count,0) + COALESCE(gd.b_count,0) + 
+                COALESCE(gd.bc_count,0) + COALESCE(gd.c_count,0) + COALESCE(gd.d_count,0) + 
+                COALESCE(gd.f_count,0)) > 0
+          THEN
+            (COALESCE(gd.a_count,0)*4.0 + COALESCE(gd.ab_count,0)*3.5 + COALESCE(gd.b_count,0)*3.0 + 
+             COALESCE(gd.bc_count,0)*2.5 + COALESCE(gd.c_count,0)*2.0 + COALESCE(gd.d_count,0)*1.0 + 
+             COALESCE(gd.f_count,0)*0.0) /
+            (COALESCE(gd.a_count,0) + COALESCE(gd.ab_count,0) + COALESCE(gd.b_count,0) + 
+             COALESCE(gd.bc_count,0) + COALESCE(gd.c_count,0) + COALESCE(gd.d_count,0) + 
+             COALESCE(gd.f_count,0))
+          ELSE NULL
+        END
+      ), 3) AS gpa_medio_professor,
+      SUM(COALESCE(gd.a_count,0) + COALESCE(gd.ab_count,0) + COALESCE(gd.b_count,0) + 
+          COALESCE(gd.bc_count,0) + COALESCE(gd.c_count,0) + COALESCE(gd.d_count,0) + 
+          COALESCE(gd.f_count,0)) AS total_estudantes_ensinados
+  FROM grade_distributions gd
+  INNER JOIN course_offerings co ON gd.course_offering_uuid = co.uuid
+  INNER JOIN subject_memberships sm ON co.uuid = sm.course_offering_uuid
+  INNER JOIN sections s ON co.uuid = s.course_offering_uuid
+  INNER JOIN teachings t ON s.uuid = t.section_uuid
+  INNER JOIN instructors i ON t.instructor_id = i.id
+  WHERE sm.subject_code = '%s'
+  GROUP BY i.name, i.id
+  HAVING COUNT(DISTINCT gd.course_offering_uuid) >= 1
+  ORDER BY gpa_medio_professor ASC
+  ", codigo_estatistica)
+  
+  tryCatch({
+    ranking_professores <- dbGetQuery(conn, query_ranking)
+    
+    if (nrow(ranking_professores) > 0) {
+      cat("RANKING CALCULADO:\n")
+      print(kable(ranking_professores))
+      
+      # Identificar professor mais difícil (menor GPA) e mais fácil (maior GPA)
+      idx_min <- which.min(ranking_professores$gpa_medio_professor)
+      idx_max <- which.max(ranking_professores$gpa_medio_professor)
+      
+      professor_dificil <- ranking_professores[idx_min, ]
+      professor_facil   <- ranking_professores[idx_max, ]
+      
+      cat("\n Professor considerado MAIS DIFÍCIL:\n")
+      cat(sprintf("- %s (GPA médio = %.2f)\n", 
+                  professor_dificil$professor_nome, professor_dificil$gpa_medio_professor))
+      
+      cat("\n Professor considerado MAIS FÁCIL:\n")
+      cat(sprintf("- %s (GPA médio = %.2f)\n", 
+                  professor_facil$professor_nome, professor_facil$gpa_medio_professor))
+      
+    } else {
+      cat(" Nenhum professor encontrado com dados suficientes.\n")
+    }
+  }, error = function(e) {
+    cat(sprintf("Erro no ranking: %s\n", e$message))
+  })
+  
+} else {
+  cat(" Código de estatística não definido.\n")
+}
+
+cat("Atividade 3 concluída em:", format(Sys.time(), '%H:%M:%S'), "\n")
+```
+
+## Resumo Final
+
+```{r}
+# Calcular tempo total de execução
+fim_analise <- Sys.time()
+tempo_total <- difftime(fim_analise, inicio_analise, units = "secs")
+
+cat("=== RESUMO FINAL ===\n")
+cat("Análise concluída em:", format(fim_analise, '%d/%m/%Y às %H:%M:%S'), "\n")
+cat("Tempo total de execução:", round(as.numeric(tempo_total), 2), "segundos\n\n")
+
+if (exists("codigo_estatistica")) {
+  cat(sprintf(" Código analisado: %s\n", codigo_estatistica))
+}
+
+if (exists("professores_stat") && nrow(professores_stat) > 0) {
+  cat(sprintf("professores identificados: %d\n", nrow(professores_stat)))
+}
+
+if (exists("dados_gpa") && nrow(dados_gpa) > 0) {
+  cat(sprintf("Oferecimentos com GPA: %d\n", nrow(dados_gpa)))
+  
+  gpas <- dados_gpa$gpa_medio[!is.na(dados_gpa$gpa_medio)]
+  if (length(gpas) > 0) {
+    cat(sprintf("GPA médio geral: %.3f (variação: %.3f - %.3f)\n", 
+                mean(gpas), min(gpas), max(gpas)))
+  }
+}
+
+if (exists("ranking_professores") && nrow(ranking_professores) > 0) {
+  cat(sprintf("Professores ranqueados: %d\n", nrow(ranking_professores)))
+  
+  gpas_prof <- ranking_professores$gpa_medio_professor[!is.na(ranking_professores$gpa_medio_professor)]
+  if (length(gpas_prof) > 1) {
+    diff_gpa <- max(gpas_prof) - min(gpas_prof)
+    cat(sprintf("Maior diferença de GPA entre professores: %.3f pontos\n", diff_gpa))
+  }
+}
+
+cat("\n ANÁLISE CONCLUÍDA COM SUCESSO!\n")
+cat("Documento gerado em:", format(Sys.time(), '%d de %B de %Y às %H:%M:%S (%Z)'), "\n")
+```
+
+## Desconexão
+
+```{r}
+if (exists("conn") && !is.null(conn)) {
+  dbDisconnect(conn)
+  cat("conexão encerrada em:", format(Sys.time(), '%H:%M:%S'), "\n")
+}
+```
+
+---
+
+*Este documento foi gerado automaticamente em `r format(Sys.time(), '%d de %B de %Y às %H:%M:%S (%Z)')`*
