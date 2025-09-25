@@ -1,0 +1,509 @@
+---
+title: "Laboratório SQLite"
+subtitle: "Manipulação de Banco de Dados com R"
+author: "Seu Nome"
+date: today
+format: 
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    code-fold: false
+    code-tools: true
+    highlight-style: github
+  pdf:
+    toc: true
+    number-sections: true
+    colorlinks: true
+execute:
+  warning: false
+  message: false
+---
+
+## Setup Inicial
+
+```{r}
+#| label: setup
+#| include: true
+
+# Carregando a biblioteca RSQLite para conexão com bancos SQLite
+library(RSQLite)
+
+# Carregando dplyr para manipulação de dados (verbos como select, filter, etc.)
+library(dplyr)
+
+# Carregando DBI (Database Interface) - interface padrão do R para bancos de dados
+library(DBI)
+
+# Carregando knitr para geração de tabelas formatadas em documentos
+library(knitr)
+
+# Carregando kableExtra para formatação avançada de tabelas (cores, estilos, etc.)
+library(kableExtra)
+
+# Definindo configuração global para mostrar apenas 2 casas decimais nos números
+options(digits = 2)
+```
+
+## Atividade 1: Configuração do Arquivo
+
+```{r}
+#| label: config-arquivo
+
+# Definindo a variável path com o caminho relativo da pasta atual
+# O ponto (.) representa o diretório de trabalho atual
+path <- "."  # Pasta atual - utilize o caminho relativo apropriado
+
+# Usando file.path() para criar o caminho completo do arquivo
+# Esta função concatena path e nome do arquivo de forma independente do SO
+fname <- file.path(path, "disco.db")
+
+# Verificando se o arquivo existe no caminho especificado
+# file.exists() retorna TRUE se o arquivo existir, FALSE caso contrário
+if (!file.exists(fname)) {
+  # stop() interrompe a execução e exibe mensagem de erro
+  stop("Arquivo disco.db não encontrado no caminho especificado!")
+} else {
+  # cat() imprime mensagem no console (similar ao print, mas para texto simples)
+  cat("✓ Arquivo encontrado:", fname, "\n")
+}
+```
+
+## Atividade 2: Conexão com o Banco de Dados
+
+```{r}
+#| label: conexao-bd
+
+# Estabelecendo conexão com o banco SQLite usando dbConnect()
+# RSQLite::SQLite() especifica o driver SQLite
+# fname é o caminho completo do arquivo de banco
+conn <- dbConnect(RSQLite::SQLite(), fname)
+
+# Confirmando que a conexão foi estabelecida com sucesso
+cat("✓ Conexão estabelecida com sucesso!\n")
+```
+
+## Atividade 3: Exploração das Tabelas
+
+```{r}
+#| label: listar-tabelas
+
+# dbListTables() retorna um vetor com nomes de todas as tabelas do banco
+tabelas <- dbListTables(conn)
+
+# Exibindo as tabelas encontradas no console
+cat("Tabelas encontradas no banco de dados:\n")
+print(tabelas)
+
+# Criando um data.frame para apresentação formatada das tabelas
+# 1:length(tabelas) cria sequência numérica de 1 até o número de tabelas
+data.frame(
+  Índice = 1:length(tabelas),           # Coluna com numeração sequencial
+  Nome_da_Tabela = tabelas              # Coluna com nomes das tabelas
+) %>%
+  # Pipe (%>%) passa o resultado para a próxima função
+  # kable() cria tabela formatada com caption (título)
+  kable(caption = "Tabelas disponíveis no banco disco.db") %>%
+  # kable_styling() aplica estilos Bootstrap: striped (listras) e hover (efeito mouse)
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+## Atividade 4: Estrutura da Tabela Customers
+
+```{r}
+#| label: colunas-customers
+
+# dbListFields() retorna vetor com nomes das colunas da tabela especificada
+colunas_customers <- dbListFields(conn, "customers")
+cat("Colunas da tabela 'customers':\n")
+print(colunas_customers)
+
+# PRAGMA table_info() é comando SQLite que retorna metadados da tabela
+# Inclui: nome, tipo, se aceita NULL, se é chave primária, valor padrão
+estrutura_customers <- dbGetQuery(conn, "PRAGMA table_info(customers)")
+
+estrutura_customers %>%
+  # select() escolhe apenas colunas específicas
+  select(name, type, notnull, pk) %>%
+  # rename() altera nomes das colunas para português
+  rename(
+    "Nome da Coluna" = name,        # name -> Nome da Coluna
+    "Tipo" = type,                  # type -> Tipo
+    "Não Nulo" = notnull,          # notnull -> Não Nulo (1=sim, 0=não)
+    "Chave Primária" = pk           # pk -> Chave Primária (1=sim, 0=não)
+  ) %>%
+  # Gerando tabela formatada com título explicativo
+  kable(caption = "Estrutura da tabela customers") %>%
+  # Aplicando estilos visuais à tabela
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+## Atividade 5: Contagem Total de Clientes
+
+```{r}
+#| label: total-clientes
+
+# Executando consulta SQL para contar total de registros na tabela customers
+# COUNT(*) conta todas as linhas, incluindo NULL
+# AS cria alias para nomear a coluna resultado
+total_clientes <- dbGetQuery(conn, "SELECT COUNT(*) as total_clientes FROM customers")
+
+# Acessando o valor da coluna total_clientes (primeira linha, primeira coluna)
+cat("Número total de clientes cadastrados:", total_clientes$total_clientes, "\n")
+
+# Criando tabela resumo para visualização do resultado
+data.frame(
+  Métrica = "Total de Clientes",                    # Nome da métrica
+  Valor = total_clientes$total_clientes             # Valor numérico
+) %>%
+  # Formatando como tabela com título descritivo
+  kable(caption = "Resumo: Clientes Cadastrados") %>%
+  # Aplicando estilização visual
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+## Atividade 6: Países Únicos
+
+```{r}
+#| label: paises-unicos
+
+# COUNT(DISTINCT campo) conta valores únicos (elimina duplicatas)
+# DISTINCT Country garante que cada país seja contado apenas uma vez
+paises_unicos <- dbGetQuery(conn, "SELECT COUNT(DISTINCT Country) as paises_diferentes FROM customers")
+
+# Exibindo resultado no console
+cat("Número de países diferentes:", paises_unicos$paises_diferentes, "\n")
+
+# Consulta adicional para obter lista completa de países únicos
+# ORDER BY organiza alfabeticamente
+todos_paises <- dbGetQuery(conn, "SELECT DISTINCT Country FROM customers ORDER BY Country")
+
+# Criando data.frame com duas linhas: contagem e lista completa
+data.frame(
+  Métrica = c("Países Únicos", "Lista Completa"),
+  Valor = c(paises_unicos$paises_diferentes,          # Número de países
+            paste(todos_paises$Country, collapse = ", "))  # Lista separada por vírgulas
+) %>%
+  # paste(..., collapse = ", ") une elementos do vetor com vírgula
+  kable(caption = "Análise de Países") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+## Atividade 7: Clientes por País
+
+```{r}
+#| label: clientes-por-pais
+
+# Consulta SQL com agregação e ordenação
+clientes_por_pais <- dbGetQuery(conn, "
+  SELECT Country as Pais,                    -- AS cria alias para coluna
+         COUNT(*) as Quantidade_Clientes     -- COUNT(*) conta registros por grupo
+  FROM customers                             -- Tabela fonte
+  GROUP BY Country                           -- Agrupa resultados por país
+  ORDER BY Quantidade_Clientes DESC         -- Ordena decrescente por quantidade
+")
+
+cat("Distribuição de clientes por país:\n")
+
+clientes_por_pais %>%
+  # Criando tabela com título descritivo
+  kable(caption = "Clientes por País (Ordem Decrescente)") %>%
+  kable_styling(bootstrap_options = c("striped", "hover")) %>%
+  # row_spec() aplica formatação específica às linhas
+  # 1:5 especifica linhas 1 a 5, background define cor de fundo
+  row_spec(1:5, background = "#f0f8ff")  # Destacando os top 5 países
+```
+
+## Atividade 8: Top 5 Países
+
+```{r}
+#| label: top5-paises
+
+# Similar à consulta anterior, mas com LIMIT para restringir resultados
+top5_paises <- dbGetQuery(conn, "
+  SELECT Country as Pais, 
+         COUNT(*) as Quantidade_Clientes 
+  FROM customers 
+  GROUP BY Country 
+  ORDER BY Quantidade_Clientes DESC 
+  LIMIT 5                                    -- Limita resultado a 5 registros
+")
+
+top5_paises %>%
+  kable(caption = "Top 5 Países com Mais Clientes") %>%
+  kable_styling(bootstrap_options = c("striped", "hover")) %>%
+  # Aplicando cores diferentes para simular pódio (ouro, prata, bronze)
+  row_spec(1, background = "#ffd700") %>%  # Ouro para 1º lugar
+  row_spec(2, background = "#c0c0c0") %>%  # Prata para 2º lugar
+  row_spec(3, background = "#cd7f32")      # Bronze para 3º lugar
+```
+
+## Atividade 9: Países com 6 Letras
+
+```{r}
+#| label: paises-6-letras
+
+# Usando função LENGTH() do SQLite para filtrar por tamanho do texto
+paises_6_letras <- dbGetQuery(conn, "
+  SELECT DISTINCT Country as Pais           -- DISTINCT elimina duplicatas
+  FROM customers 
+  WHERE LENGTH(Country) = 6                 -- Filtra países com exatamente 6 caracteres
+  ORDER BY Country                          -- Ordena alfabeticamente
+")
+
+paises_6_letras %>%
+  kable(caption = "Países com Exatamente 6 Letras") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+
+# nrow() retorna número de linhas do data.frame
+cat("\nTotal de países com 6 letras:", nrow(paises_6_letras), "\n")
+```
+
+## Atividade 10: Músicas Compradas por Brasileiros
+
+```{r}
+#| label: musicas-brasil
+
+# Consulta complexa usando múltiplos INNER JOINs para relacionar tabelas
+musicas_brasil <- dbGetQuery(conn, "
+  SELECT DISTINCT t.Name as Musica,         -- DISTINCT evita músicas duplicadas
+         a.Title as Album,                  -- Título do álbum
+         ar.Name as Artista,                -- Nome do artista
+         g.Name as Genero                   -- Nome do gênero
+  FROM customers c                          -- Tabela principal (clientes)
+  INNER JOIN invoices i ON c.CustomerId = i.CustomerId           -- Relaciona cliente com fatura
+  INNER JOIN invoice_items ii ON i.InvoiceId = ii.InvoiceId      -- Relaciona fatura com itens
+  INNER JOIN tracks t ON ii.TrackId = t.TrackId                  -- Relaciona item com música
+  INNER JOIN albums a ON t.AlbumId = a.AlbumId                   -- Relaciona música com álbum
+  INNER JOIN artists ar ON a.ArtistId = ar.ArtistId              -- Relaciona álbum com artista
+  LEFT JOIN genres g ON t.GenreId = g.GenreId                    -- LEFT JOIN permite gênero NULL
+  WHERE c.Country = 'Brazil'                                     -- Filtra apenas clientes do Brasil
+  ORDER BY ar.Name, a.Title, t.Name                              -- Ordena por artista, álbum, música
+")
+
+# nrow() conta linhas do resultado
+cat("Total de músicas diferentes compradas por brasileiros:", nrow(musicas_brasil), "\n\n")
+
+# Exibindo amostra dos resultados
+musicas_brasil %>%
+  # head(15) mostra apenas primeiras 15 linhas
+  head(15) %>%
+  kable(caption = "Amostra: Músicas Compradas por Clientes Brasileiros") %>%
+  kable_styling(bootstrap_options = c("striped", "hover")) %>%
+  # scroll_box() cria área rolável quando conteúdo é muito grande
+  scroll_box(height = "400px")
+
+# Calculando estatísticas resumidas usando funções de agregação
+cat("\n=== Resumo das Compras Brasileiras ===\n")
+cat("- Total de músicas únicas:", nrow(musicas_brasil), "\n")
+# unique() remove duplicatas, length() conta elementos únicos
+cat("- Total de artistas únicos:", length(unique(musicas_brasil$Artista)), "\n")
+cat("- Total de álbuns únicos:", length(unique(musicas_brasil$Album)), "\n")
+```
+
+## Questões Adicionais para P2
+
+### Álbum Mais Tocado por País
+
+```{r}
+#| label: album-mais-tocado-pais
+
+# Consulta avançada usando CTE (Common Table Expression) e Window Functions
+album_mais_tocado_pais <- dbGetQuery(conn, "
+  WITH album_pais AS (                      -- CTE: tabela temporária nomeada
+    SELECT c.Country as Pais,
+           a.Title as Album,
+           ar.Name as Artista,
+           COUNT(*) as Quantidade_Compras   -- Conta compras por álbum/país
+    FROM customers c
+    INNER JOIN invoices i ON c.CustomerId = i.CustomerId
+    INNER JOIN invoice_items ii ON i.InvoiceId = ii.InvoiceId
+    INNER JOIN tracks t ON ii.TrackId = t.TrackId
+    INNER JOIN albums a ON t.AlbumId = a.AlbumId
+    INNER JOIN artists ar ON a.ArtistId = ar.ArtistId
+    GROUP BY c.Country, a.Title, ar.Name    -- Agrupa por país, álbum e artista
+  ),
+  ranked_albums AS (                        -- Segunda CTE para ranking
+    SELECT Pais, Album, Artista, Quantidade_Compras,
+           ROW_NUMBER() OVER (PARTITION BY Pais ORDER BY Quantidade_Compras DESC) as rank
+           -- ROW_NUMBER() cria numeração sequencial dentro de cada partição (país)
+           -- PARTITION BY divide dados por país
+           -- ORDER BY define critério de ordenação dentro da partição
+    FROM album_pais
+  )
+  SELECT Pais, Album, Artista, Quantidade_Compras
+  FROM ranked_albums
+  WHERE rank = 1                            -- Filtra apenas primeiro colocado de cada país
+  ORDER BY Quantidade_Compras DESC, Pais    -- Ordena por quantidade e país
+")
+
+album_mais_tocado_pais %>%
+  kable(caption = "Álbum Mais Tocado por País") %>%
+  kable_styling(bootstrap_options = c("striped", "hover")) %>%
+  # scroll_box() permite rolagem quando tabela é muito grande
+  scroll_box(height = "500px")
+```
+
+### Artista Mais Tocado por País
+
+```{r}
+#| label: artista-mais-tocado-pais
+
+# Consulta similar à anterior, mas agrupando por artista em vez de álbum
+artista_mais_tocado_pais <- dbGetQuery(conn, "
+  WITH artista_pais AS (                    -- CTE para contar compras por artista/país
+    SELECT c.Country as Pais,
+           ar.Name as Artista,
+           COUNT(*) as Quantidade_Compras   -- Conta todas as músicas compradas do artista
+    FROM customers c
+    INNER JOIN invoices i ON c.CustomerId = i.CustomerId
+    INNER JOIN invoice_items ii ON i.InvoiceId = ii.InvoiceId
+    INNER JOIN tracks t ON ii.TrackId = t.TrackId
+    INNER JOIN albums a ON t.AlbumId = a.AlbumId
+    INNER JOIN artists ar ON a.ArtistId = ar.ArtistId
+    GROUP BY c.Country, ar.Name             -- Agrupa por país e artista
+  ),
+  ranked_artists AS (                       -- CTE para criar ranking de artistas
+    SELECT Pais, Artista, Quantidade_Compras,
+           ROW_NUMBER() OVER (PARTITION BY Pais ORDER BY Quantidade_Compras DESC) as rank
+           -- Numera artistas por país, ordenando por quantidade de compras
+    FROM artista_pais
+  )
+  SELECT Pais, Artista, Quantidade_Compras
+  FROM ranked_artists
+  WHERE rank = 1                            -- Seleciona apenas o artista mais tocado por país
+  ORDER BY Quantidade_Compras DESC, Pais
+")
+
+artista_mais_tocado_pais %>%
+  kable(caption = "Artista Mais Tocado por País") %>%
+  kable_styling(bootstrap_options = c("striped", "hover")) %>%
+  scroll_box(height = "500px")
+```
+
+## Análises Exploratórias Adicionais
+
+### Estrutura Geral do Banco
+
+```{r}
+#| label: estrutura-banco
+
+# Definindo vetor com nomes das principais tabelas para análise
+principais_tabelas <- c("customers", "invoices", "invoice_items", "tracks", "albums", "artists", "genres")
+
+cat("=== ESTRUTURA DAS PRINCIPAIS TABELAS ===\n")
+# Criando lista vazia para armazenar contagens
+estruturas <- list()
+
+# Loop for para iterar sobre cada tabela
+for(tabela in principais_tabelas) {
+  # PRAGMA table_info() retorna metadados da tabela
+  estrutura <- dbGetQuery(conn, paste("PRAGMA table_info(", tabela, ")"))
+  # Armazenando número de colunas na lista
+  estruturas[[tabela]] <- nrow(estrutura)
+  # paste() concatena strings
+  cat("Tabela", tabela, ":", nrow(estrutura), "colunas\n")
+}
+
+# Criando resumo visual das estruturas
+data.frame(
+  Tabela = names(estruturas),               # Nomes das tabelas (chaves da lista)
+  Numero_Colunas = unlist(estruturas)       # unlist() converte lista em vetor
+) %>%
+  kable(caption = "Resumo: Número de Colunas por Tabela") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+### Estatísticas Gerais
+
+```{r}
+#| label: estatisticas-gerais
+
+# Criando data.frame com estatísticas de todas as entidades principais
+estatisticas <- data.frame(
+  Entidade = c("Clientes", "Faturas", "Itens de Fatura", "Músicas", "Álbuns", "Artistas", "Gêneros"),
+  Quantidade = c(
+    # Executando COUNT(*) para cada tabela e extraindo o valor com $count
+    dbGetQuery(conn, "SELECT COUNT(*) as count FROM customers")$count,
+    dbGetQuery(conn, "SELECT COUNT(*) as count FROM invoices")$count,
+    dbGetQuery(conn, "SELECT COUNT(*) as count FROM invoice_items")$count,
+    dbGetQuery(conn, "SELECT COUNT(*) as count FROM tracks")$count,
+    dbGetQuery(conn, "SELECT COUNT(*) as count FROM albums")$count,
+    dbGetQuery(conn, "SELECT COUNT(*) as count FROM artists")$count,
+    dbGetQuery(conn, "SELECT COUNT(*) as count FROM genres")$count
+  )
+)
+
+estatisticas %>%
+  kable(caption = "Estatísticas Gerais do Banco de Dados") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+### Análise de Vendas por País
+
+```{r}
+#| label: vendas-por-pais
+
+# Consulta complexa para análise financeira detalhada por país
+vendas_por_pais <- dbGetQuery(conn, "
+  SELECT c.Country as Pais,
+         COUNT(DISTINCT c.CustomerId) as Total_Clientes,        -- Conta clientes únicos
+         COUNT(DISTINCT i.InvoiceId) as Total_Faturas,          -- Conta faturas únicas
+         COUNT(ii.InvoiceLineId) as Total_Itens,                -- Conta todos os itens vendidos
+         ROUND(SUM(ii.UnitPrice * ii.Quantity), 2) as Receita_Total,  -- Soma total das vendas
+         ROUND(AVG(ii.UnitPrice * ii.Quantity), 2) as Receita_Media_Item,  -- Média por item
+         ROUND(SUM(ii.UnitPrice * ii.Quantity) / COUNT(DISTINCT c.CustomerId), 2) as Receita_Por_Cliente
+         -- Receita total dividida por número de clientes únicos
+  FROM customers c
+  INNER JOIN invoices i ON c.CustomerId = i.CustomerId
+  INNER JOIN invoice_items ii ON i.InvoiceId = ii.InvoiceId
+  GROUP BY c.Country                         -- Agrupa cálculos por país
+  ORDER BY Receita_Total DESC                -- Ordena por receita total decrescente
+")
+
+vendas_por_pais %>%
+  # head(10) limita exibição aos 10 primeiros registros
+  head(10) %>%
+  kable(caption = "Top 10: Análise de Vendas por País") %>%
+  kable_styling(bootstrap_options = c("striped", "hover")) %>%
+  # Destacando os 3 primeiros colocados com cor diferente
+  row_spec(1:3, background = "#e6f3ff")
+```
+
+### Análise de Gêneros Musicais
+
+```{r}
+#| label: analise-generos
+
+# Análise dos gêneros musicais mais populares baseada em vendas
+generos_populares <- dbGetQuery(conn, "
+  SELECT g.Name as Genero,
+         COUNT(*) as Quantidade_Compras,                        -- Total de compras do gênero
+         COUNT(DISTINCT t.TrackId) as Musicas_Diferentes,       -- Músicas únicas no gênero
+         ROUND(SUM(ii.UnitPrice * ii.Quantity), 2) as Receita_Total  -- Receita total do gênero
+  FROM invoice_items ii
+  INNER JOIN tracks t ON ii.TrackId = t.TrackId                 -- Relaciona item com música
+  INNER JOIN genres g ON t.GenreId = g.GenreId                  -- Relaciona música com gênero
+  GROUP BY g.Name                                               -- Agrupa por gênero
+  ORDER BY Quantidade_Compras DESC                              -- Ordena por popularidade
+  LIMIT 10                                                      -- Limita aos top 10
+")
+
+generos_populares %>%
+  kable(caption = "Top 10: Gêneros Musicais Mais Populares") %>%
+  kable_styling(bootstrap_options = c("striped", "hover")) %>%
+  # Destacando os 3 gêneros mais populares
+  row_spec(1:3, background = "#fff2e6")
+```
+
+## Atividade 11: Encerramento
+
+```{r}
+#| label: desconexao
+
+# dbDisconnect() fecha a conexão com o banco de dados
+# Importante para liberar recursos e evitar locks no arquivo
+dbDisconnect(conn)
+cat("✓ Conexão com o banco de dados encerrada com sucesso!\n")
+```
+
