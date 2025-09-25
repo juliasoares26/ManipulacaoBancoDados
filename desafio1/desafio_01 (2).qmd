@@ -1,0 +1,382 @@
+---
+title: "Comparação de Velocidade de Carregamento de Dados"
+subtitle: "Análise de Performance: R base vs readr vs pandas"
+author: "Análise de Dados"
+date: "`r Sys.Date()`"
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    code-fold: false
+    fig-width: 10
+    fig-height: 6
+    df-print: paged
+  pdf:
+    toc: true
+    number-sections: true
+    colorlinks: true
+execute:
+  warning: false
+  message: false
+  echo: true
+---
+
+# Comparação de Velocidade de Carregamento de Dados
+
+## Introdução
+
+Este documento analisa a velocidade de carregamento do dataset `flights.csv` do Kaggle usando três métodos diferentes:
+
+-   `read.csv()` do R base
+-   `read_csv()` do pacote readr
+-   `pandas.read_csv()` via reticulate (Python no R)
+
+### Objetivo
+
+Determinar qual método oferece melhor performance para carregamento de grandes datasets CSV em diferentes cenários de uso.
+
+```{r}
+#| label: setup
+#| include: false
+
+# Configurações do knitr para o documento
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r}
+#| label: limpar-ambiente
+
+# Limpar todos os objetos do ambiente R para garantir um início limpo
+rm(list = ls())
+
+# Executar coleta de lixo para liberar memória não utilizada
+gc()
+```
+
+## Instalação e Carregamento de Pacotes
+
+```{r}
+#| label: carregar-bibliotecas
+
+# Carregar biblioteca readr para função read_csv() otimizada
+library(readr)
+
+# Carregar reticulate para interface com Python
+library(reticulate)
+
+# Carregar farver para criar gráficos comparativos
+library(farver)
+
+# Carregar ggplot2 para visualizações (se disponível)
+if (!require(ggplot2, quietly = TRUE)) {
+  # Instalar ggplot2 se não estiver disponível
+  install.packages("ggplot2")
+  # Carregar após instalação
+  library(ggplot2)
+}
+```
+
+```{r}
+#| label: verificar-pandas
+
+# Verificar se pandas está disponível no ambiente Python
+if (!py_module_available("pandas")) {
+  # Exibir aviso se pandas não estiver disponível
+  cat("AVISO: pandas não está disponível. Instalando...\n")
+  # Instalar pandas via reticulate
+  py_install("pandas")
+}
+```
+
+```{r}
+#| label: configurar-arquivo
+
+# Definir caminho do arquivo ZIP baixado do Kaggle
+# IMPORTANTE: Ajuste este caminho para a localização do seu arquivo
+arquivo_zip <- "archive.zip"  # ou o nome do arquivo ZIP baixado
+
+# Verificar se o arquivo ZIP existe
+if (file.exists(arquivo_zip)) {
+  # Extrair o arquivo flights.csv do ZIP
+  cat("Extraindo flights.csv do arquivo ZIP...\n")
+  
+  # Descompactar apenas o flights.csv
+  unzip(arquivo_zip, files = "flights.csv", overwrite = TRUE)
+  
+  # Definir caminho do arquivo extraído
+  arquivo_flights <- "flights.csv"
+  
+  cat("Arquivo extraído com sucesso!\n")
+  
+} else {
+  # Se não existe ZIP, assumir que já existe CSV extraído
+  arquivo_flights <- "flights.csv"
+  
+  # Verificar se o CSV existe
+  if (!file.exists(arquivo_flights)) {
+    stop(paste("Arquivo não encontrado!", 
+               "Por favor, ajuste o caminho do arquivo ZIP 'arquivo_zip'", 
+               "ou coloque o flights.csv no diretório de trabalho"))
+  }
+}
+
+# Verificar tamanho do arquivo para informação
+info_arquivo <- file.info(arquivo_flights)
+tamanho_mb <- round(info_arquivo$size / 1024 / 1024, 2)
+
+# Exibir informações do arquivo
+cat("Arquivo configurado:", arquivo_flights, "\n")
+cat("Tamanho do arquivo:", tamanho_mb, "MB\n")
+```
+
+```{r}
+#| label: funcao-medir-tempo
+
+# Criar função personalizada para medir tempo de execução com precisão
+medir_tempo <- function(expressao) {
+  # Registrar tempo de início da operação
+  inicio <- Sys.time()
+  
+  # Executar a expressão/código fornecido
+  resultado <- expressao
+  
+  # Registrar tempo de fim da operação
+  fim <- Sys.time()
+  
+  # Calcular diferença de tempo em segundos
+  tempo_decorrido <- as.numeric(difftime(fim, inicio, units = "secs"))
+  
+  # Retornar lista com dados carregados e tempo decorrido
+  return(list(dados = resultado, tempo = tempo_decorrido))
+}
+```
+
+```{r}
+#| label: metodo-1-r-base
+
+# Exibir cabeçalho para método 1
+cat("=== MÉTODO 1: read.csv() (R base) ===\n")
+
+# Medir tempo de carregamento usando read.csv do R base
+resultado1 <- medir_tempo({
+  # Carregar dados usando função padrão do R base
+  # stringsAsFactors = FALSE para evitar conversão automática para fatores
+  dados_base <- read.csv(arquivo_flights, stringsAsFactors = FALSE)
+})
+
+# Exibir tempo de carregamento com 4 casas decimais
+cat("Tempo de carregamento:", round(resultado1$tempo, 4), "segundos\n")
+
+# Exibir dimensões do dataset carregado
+cat("Dimensões:", nrow(resultado1$dados), "linhas x", ncol(resultado1$dados), "colunas\n")
+
+# Exibir informações sobre a estrutura dos dados
+cat("Tamanho em memória:", format(object.size(resultado1$dados), units = "MB"), "\n")
+```
+
+```{r}
+#| label: metodo-2-readr
+
+# Exibir cabeçalho para método 2
+cat("=== MÉTODO 2: read_csv() (readr) ===\n")
+
+# Medir tempo de carregamento usando read_csv do pacote readr
+resultado2 <- medir_tempo({
+  # Carregar dados usando read_csv otimizado do readr
+  # show_col_types = FALSE para suprimir mensagens sobre tipos de colunas
+  dados_readr <- read_csv(arquivo_flights, show_col_types = FALSE)
+})
+
+# Exibir tempo de carregamento com 4 casas decimais
+cat("Tempo de carregamento:", round(resultado2$tempo, 4), "segundos\n")
+
+# Exibir dimensões do dataset carregado
+cat("Dimensões:", nrow(resultado2$dados), "linhas x", ncol(resultado2$dados), "colunas\n")
+
+# Exibir informações sobre a estrutura dos dados
+cat("Tamanho em memória:", format(object.size(resultado2$dados), units = "MB"), "\n")
+```
+
+```{r}
+#| label: metodo-3-pandas
+
+# Exibir cabeçalho para método 3
+cat("=== MÉTODO 3: pandas.read_csv() (Python via reticulate) ===\n")
+
+# Medir tempo de carregamento usando pandas do Python
+resultado3 <- medir_tempo({
+  # Importar módulo pandas do Python
+  pd <- import("pandas")
+  
+  # Verificar se estamos lidando com um arquivo ZIP
+  if (tools::file_ext(arquivo_flights) == "zip" || grepl("\\.zip$", arquivo_flights)) {
+    # Se for ZIP, ler diretamente do ZIP especificando o arquivo
+    dados_pandas <- pd$read_csv(arquivo_flights, compression = "zip")
+  } else {
+    # Se for CSV normal, carregar diretamente
+    dados_pandas <- pd$read_csv(arquivo_flights)
+  }
+  
+  # Converter DataFrame do pandas para data.frame do R para comparação justa
+  dados_pandas_r <- py_to_r(dados_pandas)
+})
+
+# Exibir tempo de carregamento com 4 casas decimais
+cat("Tempo de carregamento:", round(resultado3$tempo, 4), "segundos\n")
+
+# Exibir dimensões do dataset carregado
+cat("Dimensões:", nrow(resultado3$dados), "linhas x", ncol(resultado3$dados), "colunas\n")
+
+# Exibir informações sobre a estrutura dos dados
+cat("Tamanho em memória:", format(object.size(resultado3$dados), units = "MB"), "\n")
+```
+
+```{r}
+#| label: analise-resultados
+#| tbl-cap: "Tabela comparativa dos métodos de carregamento"
+
+# Criar data.frame com resumo dos resultados obtidos
+resultados_df <- data.frame(
+  # Nomes dos métodos testados
+  Método = c("read.csv() [R base]", "read_csv() [readr]", "pandas.read_csv() [Python]"),
+  # Tempos de carregamento registrados
+  Tempo_segundos = c(resultado1$tempo, resultado2$tempo, resultado3$tempo),
+  # Não converter strings para fatores
+  stringsAsFactors = FALSE
+)
+
+# Ordenar resultados por tempo (método mais rápido primeiro)
+resultados_df <- resultados_df[order(resultados_df$Tempo_segundos), ]
+
+# Adicionar coluna de ranking baseada na velocidade
+resultados_df$Ranking <- 1:nrow(resultados_df)
+
+# Exibir tabela de resultados ordenada
+print(resultados_df)
+```
+
+```{r}
+#| label: estatisticas-comparativas
+
+# Calcular tempo do método mais rápido
+tempo_mais_rapido <- min(resultados_df$Tempo_segundos)
+
+# Calcular tempo do método mais lento
+tempo_mais_lento <- max(resultados_df$Tempo_segundos)
+
+# Identificar método mais rápido
+metodo_mais_rapido <- resultados_df$Método[resultados_df$Ranking == 1]
+
+# Identificar método mais lento
+metodo_mais_lento <- resultados_df$Método[resultados_df$Ranking == 3]
+
+# Exibir estatísticas resumidas
+cat("=== ESTATÍSTICAS COMPARATIVAS ===\n")
+cat("Método mais rápido:", metodo_mais_rapido, "(", round(tempo_mais_rapido, 4), "s )\n")
+cat("Método mais lento:", metodo_mais_lento, "(", round(tempo_mais_lento, 4), "s )\n")
+
+# Calcular diferença percentual entre métodos extremos
+diferenca_percentual <- ((tempo_mais_lento - tempo_mais_rapido) / tempo_mais_rapido) * 100
+cat("Diferença percentual:", round(diferenca_percentual, 2), "%\n")
+
+# Calcular fator de velocidade (quantas vezes mais rápido)
+fator_velocidade <- tempo_mais_lento / tempo_mais_rapido
+cat("Fator de velocidade:", round(fator_velocidade, 2), "x mais rápido\n")
+```
+
+## Visualização dos Resultados
+
+```{r grafico-comparacao, fig.width=10, fig.height=6}
+# Criar gráfico de barras para comparar tempos de carregamento
+p <- ggplot(resultados_df, aes(x = reorder(Método, -Tempo_segundos), y = Tempo_segundos)) +
+  # Adicionar barras com cor azul e transparência
+  geom_col(fill = "steelblue", alpha = 0.7, width = 0.6) +
+  
+  # Adicionar rótulos com valores de tempo nas barras
+  geom_text(aes(label = paste0(round(Tempo_segundos, 3), "s")), 
+            vjust = -0.5, size = 4, fontface = "bold") +
+  
+  # Configurar títulos e rótulos dos eixos
+  labs(title = "Comparação de Velocidade de Carregamento de Dados",
+       subtitle = paste("Dataset:", basename(arquivo_flights)),
+       x = "Método de Carregamento",
+       y = "Tempo de Carregamento (segundos)",
+       caption = "Menor tempo = Melhor performance") +
+  
+  # Aplicar tema minimalista
+  theme_minimal() +
+  
+  # Personalizar elementos do tema
+  theme(
+    # Rotacionar rótulos do eixo x para melhor legibilidade
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 11),
+    # Aumentar tamanho do título
+    plot.title = element_text(size = 16, face = "bold"),
+    # Configurar subtítulo
+    plot.subtitle = element_text(size = 12, color = "gray50"),
+    # Configurar legenda
+    plot.caption = element_text(size = 10, color = "gray50")
+  )
+
+# Exibir o gráfico criado
+print(p)
+```
+
+```{r}
+#| label: analise-detalhada
+
+# Exibir análise detalhada de cada método
+cat("=== ANÁLISE DETALHADA DOS MÉTODOS ===\n\n")
+
+# Análise do método R base
+cat("read.csv() (R base):\n")
+cat("   - Tempo:", round(resultado1$tempo, 4), "segundos\n")
+cat("   - Características: Método padrão, mais compatível, menor otimização\n")
+cat("   - Uso recomendado: Arquivos pequenos, máxima compatibilidade\n\n")
+
+# Análise do método readr
+cat("read_csv() (readr):\n")
+cat("   - Tempo:", round(resultado2$tempo, 4), "segundos\n")
+cat("   - Características: Otimizado para velocidade, melhor detecção de tipos\n")
+cat("   - Uso recomendado: Arquivos grandes, análises regulares em R\n\n")
+
+# Análise do método pandas
+cat("pandas.read_csv() (Python):\n")
+cat("   - Tempo:", round(resultado3$tempo, 4), "segundos\n")
+cat("   - Características: Versatilidade Python, overhead de conversão para R\n")
+cat("   - Uso recomendado: Análises híbridas Python-R, compatibilidade com workflows Python\n\n")
+cat("   - Características: Método padrão, mais compatível, menor otimização\n")
+cat("   - Uso recomendado: Arquivos pequenos, máxima compatibilidade\n\n")
+
+# Análise do método readr
+cat("read_csv() (readr):\n")
+cat("   - Tempo:", round(resultado2$tempo, 4), "segundos\n")
+cat("   - Características: Otimizado para velocidade, melhor detecção de tipos\n")
+cat("   - Uso recomendado: Arquivos grandes, análises regulares em R\n\n")
+
+# Análise do método pandas
+cat("pandas.read_csv() (Python):\n")
+cat("   - Tempo:", round(resultado3$tempo, 4), "segundos\n")
+cat("   - Características: Versatilidade Python, overhead de conversão para R\n")
+
+```
+```{r limpeza-final}
+# Remover objetos grandes da memória para liberar espaço
+cat("=== LIMPEZA DA MEMÓRIA ===\n")
+
+# Listar objetos grandes antes da limpeza
+objetos_grandes <- ls()[sapply(ls(), function(x) object.size(get(x)) > 1000000)]
+if (length(objetos_grandes) > 0) {
+  cat("Removendo objetos grandes:", paste(objetos_grandes, collapse = ", "), "\n")
+}
+
+# Remover datasets carregados para liberar memória
+rm(dados_base, dados_readr, dados_pandas_r)
+
+# Executar coleta de lixo para liberar memória
+memoria_liberada <- gc()
+
+# Confirmar limpeza
+cat("Limpeza concluída! Memória liberada.\n")
+```
