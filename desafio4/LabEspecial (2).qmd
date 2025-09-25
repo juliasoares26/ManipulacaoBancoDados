@@ -1,0 +1,189 @@
+---
+title: "Laboratório especial"
+format: html
+editor: visual
+---
+
+The `echo: false` option disables the printing of code (only output is displayed).
+
+```{r}
+# Carrega as bibliotecas PRIMEIRO
+library(tidyverse)
+library(leaflet)
+library(lubridate)
+library(ggmap)
+library(geosphere)
+```
+
+```{r}
+# Carrega os dados de voos. Lê diretamente do zip, como está enunciado no desafio
+flights <- read_csv(unz("flights.csv.zip", "flights.csv"))
+
+# Carrega os dados dos aeroportos.
+airports = read_csv('airports.csv')
+```
+
+```{r}
+# Função para analisar o trajeto de uma aeronave específica.
+
+analisar_trajeto_completo <- function(tail_number, airports_df) {
+  
+  # a. Filtra os voos da aeronave e ordena por data e hora.
+  dados_aeronave <- flights %>%
+    filter(TAIL_NUMBER == tail_number) %>%
+    arrange(YEAR, MONTH, DAY, DEPARTURE_TIME) %>%
+    mutate(
+      # Cria uma variável numérica para a hora de partida.
+      DEPARTURE_TIME_NUM = as.numeric(DEPARTURE_TIME),
+      # Converte as colunas de data em um formato de data.
+      DATA = make_date(YEAR, MONTH, DAY),
+      # Combina data e hora para uma variável de tempo completa.
+      DATA_HORA = make_datetime(YEAR, MONTH, DAY, 
+                               hour = ifelse(is.na(DEPARTURE_TIME_NUM), 0, DEPARTURE_TIME_NUM %/% 100),
+                               min = ifelse(is.na(DEPARTURE_TIME_NUM), 0, DEPARTURE_TIME_NUM %% 100)),
+      # Calcula a velocidade média do voo, tratando NAs.
+      VELOCIDADE_MEDIA = ifelse(AIR_TIME > 0 & !is.na(AIR_TIME), 
+                               DISTANCE / (AIR_TIME/60), NA),
+      # Normaliza a velocidade média para a espessura da linha do mapa.
+      ESPESSURA_LINHA = scales::rescale(VELOCIDADE_MEDIA, to = c(1, 10), na.rm = TRUE)
+    )
+  
+  # Checa se a aeronave existe nos dados. Se não, para a execução.
+  if (nrow(dados_aeronave) == 0) {
+    stop(paste("Aeronave", tail_number, "não encontrada nos dados."))
+  }
+  
+  # b. Cria a tabela final para o output.
+  tabela_tidy <- dados_aeronave %>%
+    select(TAIL_NUMBER, DATA, DATA_HORA, 
+           ORIGIN_AIRPORT, DESTINATION_AIRPORT,
+           AIRLINE, FLIGHT_NUMBER,
+           DEPARTURE_TIME, ARRIVAL_TIME,
+           AIR_TIME, DISTANCE, VELOCIDADE_MEDIA) %>%
+    arrange(DATA_HORA)
+  
+  # Junta os dados de voos com as coordenadas dos aeroportos.
+  dados_com_coords <- dados_aeronave %>%
+    left_join(airports_df %>% 
+                select(IATA_CODE, LATITUDE, LONGITUDE) %>%
+                rename(ORIGIN_AIRPORT = IATA_CODE,
+                       ORIGIN_LAT = LATITUDE,
+                       ORIGIN_LON = LONGITUDE),
+              by = "ORIGIN_AIRPORT") %>%
+    left_join(airports_df %>% 
+                select(IATA_CODE, LATITUDE, LONGITUDE) %>%
+                rename(DESTINATION_AIRPORT = IATA_CODE,
+                       DEST_LAT = LATITUDE,
+                       DEST_LON = LONGITUDE),
+              by = "DESTINATION_AIRPORT")
+  
+  # c. e d. Cria o mapa com Leaflet.
+  mapa <- leaflet() %>%
+    addTiles() %>%
+    addProviderTiles(providers$CartoDB.Positron)
+  
+  # Adiciona cada trajeto como uma linha.
+  for (i in 1:nrow(dados_com_coords)) {
+    if (!is.na(dados_com_coords$ORIGIN_LAT[i]) && !is.na(dados_com_coords$DEST_LAT[i])) {
+      
+      # Monta o popup da linha com infos do voo.
+      popup_info <- paste(
+        "<b>Voo:</b>", dados_com_coords$FLIGHT_NUMBER[i],
+        "<br><b>Data:</b>", dados_com_coords$DATA[i],
+        "<br><b>Rota:</b>", dados_com_coords$ORIGIN_AIRPORT[i], "→", dados_com_coords$DESTINATION_AIRPORT[i],
+        "<br><b>Velocidade:</b>", round(dados_com_coords$VELOCIDADE_MEDIA[i], 1), "mph",
+        "<br><b>Distância:</b>", dados_com_coords$DISTANCE[i], "milhas",
+        "<br><b>Tempo de voo:</b>", dados_com_coords$AIR_TIME[i], "min"
+      )
+      
+      mapa <- mapa %>%
+        addPolylines(
+          lng = c(dados_com_coords$ORIGIN_LON[i], dados_com_coords$DEST_LON[i]),
+          lat = c(dados_com_coords$ORIGIN_LAT[i], dados_com_coords$DEST_LAT[i]),
+          weight = dados_com_coords$ESPESSURA_LINHA[i],
+          color = "#2c7bb6",
+          opacity = 0.8,
+          popup = popup_info
+        )
+    }
+  }
+  
+  # Adiciona marcadores para todos os aeroportos visitados.
+  aeroportos_visitados <- unique(c(dados_com_coords$ORIGIN_AIRPORT, dados_com_coords$DESTINATION_AIRPORT))
+  coords_aeroportos <- airports_df %>%
+    filter(IATA_CODE %in% aeroportos_visitados)
+  
+  mapa <- mapa %>%
+    addCircleMarkers(
+      data = coords_aeroportos,
+      lng = ~LONGITUDE,
+      lat = ~LATITUDE,
+      radius = 5,
+      color = "#d73027",
+      fillColor = "#fc8d59",
+      fillOpacity = 0.8,
+      popup = ~paste("<b>Aeroporto:</b>", IATA_CODE, "<br><b>Nome:</b>", AIRPORT)
+    )
+  
+  # Adiciona painel de estatísticas no mapa.
+  estatisticas <- paste(
+    "<h4>📊 Estatísticas da Aeronave", tail_number, "</h4>",
+    "<b>Total de voos:</b>", nrow(dados_aeronave), "<br>",
+    "<b>Velocidade média:</b>", round(mean(dados_com_coords$VELOCIDADE_MEDIA, na.rm = TRUE), 1), "mph<br>",
+    "<b>Distância total:</b>", sum(dados_com_coords$DISTANCE, na.rm = TRUE), "milhas<br>",
+    "<b>Aeroportos visitados:</b>", length(aeroportos_visitados), "<br>",
+    "<b>Período:</b>", min(dados_com_coords$DATA), "a", max(dados_com_coords$DATA)
+  )
+  
+  mapa <- mapa %>%
+    addControl(
+      html = estatisticas,
+      position = "topright"
+    ) %>%
+    # Adiciona a legenda.
+    addLegend(
+      position = "bottomright",
+      colors = c("#2c7bb6"),
+      labels = paste("Espessura = Velocidade (", 
+                    round(min(dados_com_coords$VELOCIDADE_MEDIA, na.rm = TRUE), 1), 
+                    "-", 
+                    round(max(dados_com_coords$VELOCIDADE_MEDIA, na.rm = TRUE), 1), 
+                    "mph)"),
+      title = "Legenda"
+    )
+  
+  # Retorna a tabela e o mapa em uma lista.
+  return(list(
+    tabela_tidy = tabela_tidy,
+    mapa = mapa,
+    estatisticas = list(
+      total_voos = nrow(dados_aeronave),
+      velocidade_media = mean(dados_com_coords$VELOCIDADE_MEDIA, na.rm = TRUE),
+      distancia_total = sum(dados_com_coords$DISTANCE, na.rm = TRUE),
+      aeroportos_visitados = aeroportos_visitados,
+      periodo = range(dados_com_coords$DATA)
+    ),
+    dados_completos = dados_com_coords
+  ))
+}
+
+# Roda a função com a aeronave "N407AS" e o dataset 'airports'.
+resultado <- analisar_trajeto_completo("N407AS", airports)
+
+# Note que o resultado é dado apenas como um exemplo, para especificar alguma linha aérea específica é só colocar como argumento da função
+```
+
+```{r}
+# Para visualizar os resultados:
+print(resultado$tabela_tidy)
+```
+
+```{r}
+# Para mostrar o mapa:
+resultado$mapa
+```
+
+```{r}
+# Para ver as estatísticas:
+print(resultado$estatisticas)
+```
