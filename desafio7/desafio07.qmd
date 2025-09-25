@@ -1,0 +1,348 @@
+---
+title: "Desafio 07 - Trabalhando com Bancos de Dados em R"
+format: html
+editor: visual
+---
+
+## Carregamento das Bibliotecas
+
+```{r}
+# Carrega biblioteca para manipulação de dados
+library(dplyr)
+# Carrega biblioteca para leitura de arquivos CSV
+library(readr)
+# Carrega biblioteca para leitura rápida de arquivos grandes
+library(vroom)
+# Carrega biblioteca para trabalhar com SQLite
+library(RSQLite)
+# Carrega conjunto de bibliotecas do tidyverse
+library(tidyverse)
+# Carrega biblioteca para usar dplyr com bancos de dados
+library(dbplyr)
+```
+
+## Preparação do Banco de Dados
+
+```{r}
+# Verifica se o arquivo discoCopy.db não existe na pasta dados/
+if(!"discoCopy.db" %in% list.files("dados/")){
+  # Copia o arquivo original disco.db para discoCopy.db
+  file.copy("dados/disco.db", "dados/discoCopy.db")
+}
+```
+
+## Conexão com o Banco de Dados
+
+```{r}
+# Estabelece conexão com o banco de dados SQLite
+db <- dbConnect(SQLite(), "dados/discoCopy.db")
+```
+
+## Explorando as Tabelas do Banco
+
+```{r}
+# Lista todas as tabelas existentes no banco de dados
+dbListTables(db)
+```
+
+## Criação da Tabela Instruments
+
+```{r}
+# Verifica se a tabela 'instruments' já existe no banco
+if("instruments" %in% dbListTables(db)){
+  # Remove a tabela se ela já existir
+  dbRemoveTable(db, "instruments")
+  cat("Tabela 'instruments' já existia e foi removida.\n")
+}
+
+# Executa comando SQL para criar a tabela instruments
+dbExecute(db, "
+CREATE TABLE instruments (
+  AlbumId INTEGER,        -- ID do álbum
+  TrackId INTEGER,        -- ID da faixa
+  ElectricGuitar INTEGER, -- 1 se tem guitarra elétrica, 0 se não
+  Singer INTEGER,         -- 1 se tem vocal, 0 se não
+  Trumpet INTEGER         -- 1 se tem trompete, 0 se não
+)")
+
+cat("Tabela 'instruments' criada com sucesso!\n")
+```
+
+## Verificando os Campos da Tabela Instruments
+
+```{r}
+# Lista os nomes dos campos da tabela 'instruments'
+dbListFields(db, 'instruments')
+```
+
+## Removendo a Tabela Instruments (Teste)
+
+```{r}
+# Remove a tabela instruments usando comando SQL DROP TABLE
+dbExecute(db, "DROP TABLE instruments")
+```
+
+## Verificando Remoção da Tabela
+
+```{r}
+# Lista novamente as tabelas para confirmar que instruments foi removida
+dbListTables(db)
+```
+
+## Consulta SQL com Concatenação de Strings (Vulnerável)
+
+```{r}
+# Define o nome do artista a ser pesquisado
+aname = "Gilberto Gil"
+# Constrói query SQL concatenando strings (método vulnerável a SQL injection)
+sql = paste0("SELECT ArtistId FROM artists ",
+             "WHERE Name = '", aname, "'")
+# Executa a query e obtém o ID do artista
+aId = dbGetQuery(db, sql)
+# Constrói segunda query usando o ID obtido
+sql = paste('SELECT Title FROM albums',
+            'WHERE ArtistId =', aId)
+# Executa a query para obter os títulos dos álbuns
+dbGetQuery(db, sql)
+```
+
+## Exemplo de SQL Injection (Demonstração)
+
+```{r}
+# String maliciosa que poderia causar SQL injection
+aname <- "Gilberto Gil'; DROP TABLE 'albums"
+```
+
+## Consulta SQL Segura com Prepared Statements
+
+```{r}
+# Cria query SQL usando parâmetros preparados (método seguro)
+sql = paste("SELECT ArtistId FROM artists", "WHERE Name = ?")
+# Prepara a query no banco de dados
+query <- dbSendQuery(db, sql)
+# Vincula o valor do parâmetro de forma segura
+dbBind(query, list("Gilberto Gil"))
+# Executa a query e obtém os resultados
+aId <- dbFetch(query)
+# Limpa os recursos da query preparada
+dbClearResult(query)
+
+# Segunda parte: busca álbuns do artista (não vulnerável pois aId é controlado)
+sql = paste('SELECT Title FROM albums', 'WHERE ArtistId =', aId)
+dbGetQuery(db, sql)
+```
+
+## Recriando a Tabela Instruments
+
+```{r}
+# Verifica novamente se a tabela 'instruments' existe
+if("instruments" %in% dbListTables(db)){
+  # Remove a tabela se ela existir
+  dbRemoveTable(db, "instruments")
+  cat("Tabela 'instruments' já existia e foi removida.\n")
+}
+
+# Recria a tabela instruments com a mesma estrutura
+dbExecute(db, "
+CREATE TABLE instruments (
+  AlbumId INTEGER,        -- ID do álbum
+  TrackId INTEGER,        -- ID da faixa
+  ElectricGuitar INTEGER, -- Presença de guitarra elétrica
+  Singer INTEGER,         -- Presença de vocal
+  Trumpet INTEGER         -- Presença de trompete
+)")
+
+cat("Tabela 'instruments' criada com sucesso!\n")
+```
+
+## Verificando Novamente os Campos
+
+```{r}
+# Lista os campos da tabela instruments recriada
+dbListFields(db, 'instruments')
+```
+
+## Explorando Dados de Faixas
+
+```{r}
+# Consulta faixas do álbum ID 85 para entender os dados
+sql = paste('SELECT TrackId, Name FROM tracks', 'WHERE AlbumId = 85')
+# Executa a consulta e mostra apenas as primeiras linhas
+dbGetQuery(db, sql) %>% head
+```
+
+## Inserindo Dados na Tabela Instruments
+
+```{r}
+# Insere dois registros na tabela instruments usando INSERT INTO
+dbExecute(db, "
+  INSERT INTO instruments (AlbumId, TrackId, ElectricGuitar, Singer, Trumpet)
+  VALUES 
+    ('85', '1075', 0, 1, 0),  -- Álbum 85, Faixa 1075: sem guitarra, com vocal, sem trompete
+    ('85', '1078', 0, 1, 0);  -- Álbum 85, Faixa 1078: sem guitarra, com vocal, sem trompete
+")
+
+
+```
+
+## Verificando Dados Inseridos
+
+```{r}
+# Seleciona todos os registros da tabela instruments
+dbGetQuery(db, "SELECT * FROM instruments")
+```
+
+## Trabalhando com Dataframes: Tabela mtcars
+
+```{r}
+# Verifica se a tabela mtcars já existe no banco
+if("mtcars" %in% dbListTables(db)){
+  # Remove a tabela se ela já existir
+  dbRemoveTable(db, "mtcars")
+  cat("Tabela 'mtcars' já existia e foi removida.\n")
+}
+
+# Escreve o dataframe mtcars (built-in do R) como uma tabela no banco
+dbWriteTable(db, "mtcars", mtcars)
+
+# Lista todas as tabelas para confirmar que mtcars foi criada
+dbListTables(db)
+```
+
+## Consultando a Tabela mtcars
+
+```{r}
+# Seleciona todos os dados da tabela mtcars e mostra apenas as 3 primeiras linhas
+dbGetQuery(db, "SELECT * FROM mtcars") %>% head(3)
+```
+
+## Calculando Médias dos Dados
+
+```{r}
+# Calcula a média de todas as colunas numéricas do dataframe mtcars
+theAvgCar <- mtcars %>%
+  summarise_all(function(x) round(mean(x), 2))  # Arredonda para 2 casas decimais
+theAvgCar
+```
+
+## Adicionando Dados à Tabela Existente
+
+```{r}
+# Adiciona a linha de médias à tabela mtcars existente (append = TRUE)
+dbWriteTable(db, "mtcars", theAvgCar, append = TRUE)
+# Mostra as últimas 3 linhas para ver a linha de médias adicionada
+dbGetQuery(db, "SELECT * FROM mtcars") %>% tail(3)
+```
+
+## Sobrescrevendo a Tabela
+
+```{r}
+# Sobrescreve completamente a tabela mtcars com os dados originais
+dbWriteTable(db, "mtcars", mtcars, overwrite = TRUE)
+# Mostra as últimas 3 linhas (agora sem a linha de médias)
+dbGetQuery(db, "SELECT * FROM mtcars") %>% tail(3)
+```
+
+## Processamento em Lotes (Chunked Processing)
+
+```{r}
+# Prepara uma consulta SQL para carros com 4 cilindros
+res <- dbSendQuery(db, "SELECT * FROM mtcars WHERE cyl = 4")
+# Processa os resultados em lotes de 5 registros
+while(!dbHasCompleted(res)){
+  # Busca até 5 registros por vez
+  chunk <- dbFetch(res, n = 5)
+  # Imprime quantos registros foram retornados neste lote
+  print(nrow(chunk))
+}
+```
+
+## Limpando Recursos da Consulta
+
+```{r}
+# Libera os recursos da consulta preparada
+dbClearResult(res)
+```
+
+## Fechando Conexão e Limpando Arquivos
+
+```{r}
+# Fecha a conexão com o banco de dados
+dbDisconnect(db)
+# Verifica se o arquivo de cópia existe e o remove
+if("discoCopy.db" %in% list.files("dados/")){
+  file.remove("dados/discoCopy.db")
+}
+```
+
+## Trabalhando com Novos Dados: Aeroportos e Companhias Aéreas
+
+```{r}
+# Lê arquivo CSV de aeroportos especificando tipos das colunas
+airports <- read_csv("dados/airports.csv", col_types = "cccccdd")
+# Lê arquivo CSV de companhias aéreas especificando tipos das colunas
+airlines <- read_csv("dados/airlines.csv", col_types = "cc")
+
+# Cria uma nova conexão com banco de dados para dados de aviação
+air <- dbConnect(SQLite(), dbname="dados/air.db")
+
+# Verifica se a tabela airports já existe e a remove se necessário
+if("airports" %in% dbListTables(air)){
+  dbRemoveTable(air, "airports")
+  cat("Tabela 'airports' já existia e foi removida.\n")
+}
+
+# Verifica se a tabela airlines já existe e a remove se necessário
+if("airlines" %in% dbListTables(air)){
+  dbRemoveTable(air, "airlines")
+  cat("Tabela 'airlines' já existia e foi removida.\n")
+}
+
+# Escreve os dataframes como tabelas no banco de dados
+dbWriteTable(air, name = "airports", airports)
+dbWriteTable(air, name = "airlines", airlines)
+
+cat("Tabelas criadas com sucesso!\n")
+# Lista as tabelas criadas
+dbListTables(air)
+```
+
+## Limpeza Final do Banco de Aviação
+
+```{r}
+# Fecha a conexão com o banco de dados de aviação
+dbDisconnect(air)
+# Remove o arquivo do banco de dados se ele existir
+if("air.db" %in% list.files("../dados/")){
+  file.remove("../dados/air.db")
+}
+```
+
+## Usando dplyr com Bancos de Dados
+
+```{r}
+# Conecta ao banco de dados original (disco.db)
+db <- dbConnect(SQLite(), "dados/disco.db")
+# Cria um objeto dplyr que representa a tabela tracks no banco
+tracks <- tbl(db, "tracks")
+# Mostra as primeiras 3 linhas usando sintaxe dplyr
+tracks %>% head(3)
+```
+
+## Agregações com dplyr em Bancos de Dados
+
+```{r}
+# Calcula estatísticas agrupadas por álbum usando dplyr
+meanTracks <- tracks %>%
+  group_by(AlbumId) %>%                              # Agrupa por ID do álbum
+  summarise(AvLen = mean(Milliseconds, na.rm = TRUE), # Calcula duração média
+            AvCost = mean(UnitPrice, na.rm = TRUE))    # Calcula preço médio
+meanTracks
+```
+
+## Visualizando a Query SQL Gerada
+
+```{r}
+# Mostra o comando SQL que o dplyr gerou automaticamente
+meanTracks %>% show_query()
+```
