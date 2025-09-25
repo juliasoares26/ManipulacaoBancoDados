@@ -1,0 +1,154 @@
+---
+title: "desafio02.qmd"
+format: html
+editor: visual
+---
+
+---
+title: "Desafio02"
+format: html
+editor: visual
+---
+
+# Análise de Atrasos em Voos - Visualização por Calendário
+
+## Configuração do Ambiente
+
+### Setup do Python no RStudio
+
+```{r setup}
+# --- Configuração do ambiente Python no RStudio usando reticulate --- 
+library(reticulate)
+# Exibe informações sobre a configuração do Python: versão, caminho e módulos instalados
+py_config()
+```
+
+### Instalação de Dependências
+
+```{r install-packages}
+reticulate::py_install("seaborn")
+#desconsidere caso apareça alguma mensagem de erro
+```
+
+## Análise dos Dados de Voo
+
+### Importação de Bibliotecas
+
+```{python libraries}
+# --- Carregamento das bibliotecas necessárias ---
+import pandas as pd              # Biblioteca para análise e manipulação de dados
+import matplotlib.pyplot as plt  # Ferramenta para visualização de dados
+import calendar                  # Módulo para trabalhar com datas e calendários
+import numpy as np               # Biblioteca para computação científica com arrays
+```
+
+### Carregamento e Preparação dos Dados
+
+```{python data-loading}
+# ========================
+# Etapa 1: Carregamento e filtragem dos dados
+# ========================
+voos_dados = pd.read_csv("flights.csv", low_memory=False)  
+# Carrega o dataset de voos em formato CSV; parâmetro low_memory evita alertas de tipo
+
+empresa_aerea = "AA"  
+# Especifica a companhia aérea para análise (exemplo: "AA" representa American Airlines)
+
+# Seleciona apenas voos da empresa escolhida com atraso na chegada superior a 10 minutos
+df_filtrado = voos_dados[(voos_dados["AIRLINE"] == empresa_aerea) & (voos_dados["ARRIVAL_DELAY"] > 10)].copy()
+```
+
+### Processamento Temporal dos Dados
+
+```{python data-processing}
+# Gera uma coluna de data completa a partir das colunas YEAR, MONTH e DAY
+df_filtrado["DATE"] = pd.to_datetime(df_filtrado[["YEAR","MONTH","DAY"]])
+
+# Agrupa por data e conta o número de atrasos por dia
+contagem_atrasos = df_filtrado.groupby("DATE").size().reset_index(name="count")  
+# Resultado: DataFrame com colunas ["DATE", "count"]
+
+# Adiciona colunas separadas para ano, mês e dia para facilitar filtragens
+contagem_atrasos["year"] = contagem_atrasos["DATE"].dt.year
+contagem_atrasos["month"] = contagem_atrasos["DATE"].dt.month
+contagem_atrasos["day"] = contagem_atrasos["DATE"].dt.day
+```
+
+### Definição do Período de Análise
+
+```{python period-selection}
+# ========================
+# Etapa 2: Seleção do período de análise
+# ========================
+periodo_analise = 2015  
+# Determina qual ano será visualizado na análise
+
+# Filtra apenas os dados do ano selecionado
+dados_periodo = contagem_atrasos[contagem_atrasos["year"] == periodo_analise]
+```
+
+## Visualização dos Resultados
+
+### Criação do Gráfico em Formato de Calendário
+
+```{python visualization}
+# ========================
+# Etapa 3: Geração da visualização em formato de calendário
+# ========================
+figura, subplots = plt.subplots(3, 4, figsize=(20, 15))  
+# Cria grid com 12 gráficos (3 linhas × 4 colunas) para representar os meses
+subplots = subplots.flatten()  
+# Converte matriz 3x4 em lista linear para iteração mais simples
+
+# Itera através de todos os meses do ano
+for mes_atual in range(1, 13):
+    # Extrai dados específicos do mês em processamento
+    dados_mes_atual = dados_periodo[dados_periodo["month"] == mes_atual]
+    
+    # Inicializa objeto calendário com semana começando na segunda-feira
+    calendario_mes = calendar.Calendar(firstweekday=0)
+    
+    # Obtém todos os dias do mês (incluindo zeros para espaços vazios)
+    dias_mes = list(calendario_mes.itermonthdays(periodo_analise, mes_atual))
+    
+    # Inicializa matriz 6x7 para representar as semanas do mês
+    grade_calendario = np.zeros((6,7))
+    
+    # Preenche a matriz com os valores de atraso correspondentes
+    for posicao, dia_numero in enumerate(dias_mes):
+        semana_posicao = posicao // 7  # Calcula linha (semana do mês)
+        dia_posicao = posicao % 7      # Calcula coluna (dia da semana)
+        if dia_numero != 0:            # Processa apenas dias válidos do mês
+            atrasos_dia = dados_mes_atual.loc[dados_mes_atual["day"] == dia_numero, "count"]
+            grade_calendario[semana_posicao, dia_posicao] = atrasos_dia.values[0] if not atrasos_dia.empty else 0
+
+    # Seleciona o subplot correspondente ao mês atual
+    eixo_atual = subplots[mes_atual-1]
+    
+    # Renderiza a matriz como mapa de calor
+    imagem_resultado = eixo_atual.imshow(grade_calendario, cmap="Reds", aspect="auto", vmin=0, vmax=dados_periodo["count"].max())
+    
+    # Define o nome do mês como título do subplot
+    eixo_atual.set_title(calendar.month_name[mes_atual], fontsize=14)
+    
+    # Oculta marcações dos eixos para visual mais limpo
+    eixo_atual.set_xticks([])
+    eixo_atual.set_yticks([])
+
+# Ajusta espaçamento entre gráficos evitando sobreposição com título principal
+plt.subplots_adjust(top=0.93, hspace=0.6, wspace=0.4)
+
+# Adiciona título principal acima de toda a visualização
+figura.suptitle(f"Atrasos >10min da {empresa_aerea} em {periodo_analise}", fontsize=20, y=0.1)
+
+# Cria barra de escala de cores compartilhada
+barra_cores = figura.add_axes([0.93, 0.15, 0.015, 0.7])
+figura.colorbar(imagem_resultado, cax=barra_cores, label="Nº atrasos (>10 min)")
+
+# Renderiza a visualização completa
+plt.show()
+```
+
+## Conclusão
+
+Este documento apresenta uma análise visual dos padrões de atraso de voos ao longo do ano, organizando os dados em formato de calendário para facilitar a identificação de tendências sazonais e períodos críticos de atrasos.
