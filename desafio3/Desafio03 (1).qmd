@@ -1,6 +1,6 @@
 ---
 title: "Carregamento Rápido de Dados do Kaggle - Netflix Dataset"
-author: "Seu Nome"
+author: "Julia Soares"
 date: today
 format: 
   html:
