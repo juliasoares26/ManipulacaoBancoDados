@@ -1,0 +1,249 @@
+---
+title: "SQLite - Processamento de Dados em Lote"
+author: "Julia Soares"
+date: today
+format: html
+editor: visual
+---
+
+## Introdução
+
+Este laboratório demonstra o uso de SQLite para processamento de dados em lote, 
+utilizando chunks para leitura eficiente de arquivos grandes sem sobrecarregar a memória RAM.
+
+## Configuração Inicial
+
+```{r setup, message=FALSE, warning=FALSE}
+# Carregar pacotes necessários para o laboratório
+# readr: leitura eficiente de arquivos CSV com suporte a chunks
+# RSQLite: interface R para banco de dados SQLite
+# dplyr: manipulação de dados (usado para filtros)
+library(readr)
+library(RSQLite)
+library(dplyr)
+
+# Limpar ambiente (opcional - descomente se necessário)
+# rm(list = ls())
+```
+
+## Atividade 1: Criar Banco de Dados SQLite
+
+Criamos o arquivo de banco de dados `voos.sqlite3`. Se o arquivo não existir,
+será criado automaticamente. Se já existir, a conexão será estabelecida.
+
+```{r criar-db}
+# Conectar ao banco de dados SQLite
+# dbname: nome do arquivo do banco de dados
+# Se o arquivo não existir, será criado automaticamente
+con <- dbConnect(SQLite(), dbname = "voos.sqlite3")
+
+# Verificar se a conexão foi estabelecida com sucesso
+print("Banco de dados criado/conectado com sucesso!")
+
+# Listar tabelas existentes no banco (inicialmente vazio)
+dbListTables(con)
+```
+
+## Atividade 2: Carregar Tabelas Auxiliares
+
+Carregamos os arquivos `airlines.csv` e `airports.csv` nas respectivas tabelas
+do banco de dados. Estas tabelas contêm informações de referência que serão
+usadas posteriormente em JOINs.
+
+```{r carregar-auxiliares}
+# --- TABELA AIRLINES ---
+# Ler arquivo CSV de companhias aéreas
+# show_col_types = FALSE: suprime mensagens sobre tipos de colunas
+airlines <- read_csv("airlines.csv", show_col_types = FALSE)
+
+# Gravar dados na tabela 'airlines' do banco
+# overwrite = TRUE: substitui a tabela se ela já existir
+dbWriteTable(con, "airlines", airlines, overwrite = TRUE)
+print(paste("Tabela 'airlines' criada com", nrow(airlines), "registros"))
+
+# --- TABELA AIRPORTS ---
+# Ler arquivo CSV de aeroportos
+airports <- read_csv("airports.csv", show_col_types = FALSE)
+
+# Gravar dados na tabela 'airports' do banco
+dbWriteTable(con, "airports", airports, overwrite = TRUE)
+print(paste("Tabela 'airports' criada com", nrow(airports), "registros"))
+
+# Verificar todas as tabelas criadas no banco
+dbListTables(con)
+```
+
+## Atividade 3: Criar Função lerDados
+
+Criamos a função que processa cada chunk de dados, filtrando apenas os voos
+que partem ou chegam aos aeroportos de interesse e salvando-os no banco.
+
+```{r funcao-lerDados}
+# --- DEFINIR AEROPORTOS DE INTERESSE ---
+# Filtraremos apenas voos relacionados a estes aeroportos
+aeroportos_interesse <- c("BWI",  # Baltimore/Washington International
+                          "MIA",  # Miami International
+                          "SEA",  # Seattle-Tacoma International
+                          "SFO",  # San Francisco International
+                          "JFK")  # John F. Kennedy International
+
+# --- FUNÇÃO PARA PROCESSAR CHUNKS ---
+# input: dataframe contendo os dados do chunk atual
+# pos: posição/linha atual no arquivo (usado para mensagens de progresso)
+lerDados <- function(input, pos) {
+  
+  # Exibir mensagem de progresso indicando quantas linhas já foram lidas
+  message("Leitura atingiu a linha ", pos)
+  
+  # Filtrar apenas voos onde a ORIGEM ou DESTINO estão na lista de interesse
+  # Operador %in%: verifica se o valor está contido no vetor
+  # Operador |: OR lógico (atende a pelo menos uma das condições)
+  dados_filtrados <- input %>%
+    filter(ORIGIN_AIRPORT %in% aeroportos_interesse | 
+           DESTINATION_AIRPORT %in% aeroportos_interesse)
+  
+  # --- ESTRATÉGIA DE GRAVAÇÃO ---
+  # Primeiro chunk: sobrescrever tabela (overwrite = TRUE)
+  # Chunks subsequentes: adicionar ao final (append = TRUE)
+  # pos <= 100000 indica que estamos no primeiro chunk
+  if (pos <= 100000) {
+    # Criar nova tabela ou sobrescrever existente
+    dbWriteTable(con, "flights", dados_filtrados, overwrite = TRUE)
+  } else {
+    # Adicionar dados ao final da tabela existente
+    dbWriteTable(con, "flights", dados_filtrados, append = TRUE)
+  }
+  
+  # Não retorna nada (side effect only)
+  # A função apenas grava no banco e não devolve dados para o R
+  invisible(NULL)
+}
+```
+
+## Atividade 4: Processar Arquivo flights.csv
+
+Lemos o arquivo grande em chunks (lotes) de 100 mil registros por vez,
+aplicando a função lerDados a cada chunk. Esta abordagem permite processar
+arquivos maiores que a memória RAM disponível.
+
+```{r processar-flights, message=TRUE}
+# --- DEFINIR COLUNAS DE INTERESSE ---
+# Selecionamos apenas as colunas necessárias para economizar memória
+colunas_interesse <- c("YEAR",                  # Ano do voo
+                       "MONTH",                 # Mês do voo
+                       "DAY",                   # Dia do voo
+                       "AIRLINE",               # Código da companhia aérea
+                       "FLIGHT_NUMBER",         # Número do voo
+                       "ORIGIN_AIRPORT",        # Aeroporto de origem
+                       "DESTINATION_AIRPORT",   # Aeroporto de destino
+                       "ARRIVAL_DELAY")         # Atraso na chegada (minutos)
+
+# --- PROCESSAR ARQUIVO EM CHUNKS ---
+# read_csv_chunked: lê arquivo CSV em lotes (chunks)
+# IMPORTANTE: col_select não é suportado em read_csv_chunked
+# Solução: usar col_types e especificar apenas as colunas de interesse
+read_csv_chunked(
+  file = "flights.csv",                                    # Arquivo a ser lido
+  callback = SideEffectChunkCallback$new(lerDados),       # Função aplicada a cada chunk
+  chunk_size = 100000,                                    # Tamanho de cada lote (100 mil linhas)
+  col_types = cols_only(                                  # Especificar APENAS colunas de interesse
+    YEAR = col_integer(),
+    MONTH = col_integer(),
+    DAY = col_integer(),
+    AIRLINE = col_character(),
+    FLIGHT_NUMBER = col_integer(),
+    ORIGIN_AIRPORT = col_character(),
+    DESTINATION_AIRPORT = col_character(),
+    ARRIVAL_DELAY = col_double()
+  )
+)
+
+print("Processamento concluído!")
+
+# --- VERIFICAR RESULTADO ---
+# Contar quantos registros foram efetivamente salvos no banco
+total_registros <- dbGetQuery(con, "SELECT COUNT(*) as total FROM flights")
+print(paste("Total de voos salvos na tabela 'flights':", total_registros$total))
+```
+
+## Atividade 5: Análise - Tempo Médio de Atraso
+
+Consultamos o tempo médio de atraso por aeroporto de destino, combinando
+informações das três tabelas (flights, airports, airlines) através de JOINs.
+
+```{r analise-atraso}
+# --- QUERY SQL COMPLETA ---
+# Esta query realiza:
+# 1. Cálculo da média de atraso por aeroporto de destino
+# 2. JOIN com tabela airports para obter nome completo do aeroporto
+# 3. JOIN com tabela airlines para obter nome completo da companhia
+# 4. Agrupamento por aeroporto e companhia
+# 5. Ordenação decrescente por tempo médio de atraso
+query <- "
+SELECT 
+  ROUND(AVG(f.ARRIVAL_DELAY), 2) as tempo_medio_atraso,    -- Média de atraso (arredondada)
+  f.DESTINATION_AIRPORT as sigla_aeroporto,                -- Código IATA do aeroporto
+  ap.AIRPORT as nome_aeroporto,                            -- Nome completo do aeroporto
+  al.AIRLINE as nome_companhia                             -- Nome completo da companhia
+FROM flights f                                             -- Tabela principal (alias: f)
+INNER JOIN airports ap                                     -- JOIN com aeroportos
+  ON f.DESTINATION_AIRPORT = ap.IATA_CODE                  -- Chave: código IATA
+INNER JOIN airlines al                                     -- JOIN com companhias
+  ON f.AIRLINE = al.IATA_CODE                              -- Chave: código IATA
+GROUP BY f.DESTINATION_AIRPORT, ap.AIRPORT, al.AIRLINE     -- Agrupar por aeroporto e companhia
+ORDER BY tempo_medio_atraso DESC                           -- Ordenar do maior para menor atraso
+"
+
+# Executar query SQL e armazenar resultado em dataframe
+resultado <- dbGetQuery(con, query)
+
+# Exibir primeiros 10 registros (aeroportos com maior atraso)
+print("Top 10 aeroportos com maior atraso médio:")
+head(resultado, 10)
+```
+
+```{r exibir-tabela, echo=FALSE}
+# Exibir tabela formatada usando knitr::kable (primeiros 20 registros)
+# echo=FALSE: não mostra o código no documento renderizado
+knitr::kable(head(resultado, 20), 
+             caption = "Tempo Médio de Atraso por Aeroporto de Destino",
+             col.names = c("Tempo Médio (min)", "Sigla", "Aeroporto", "Companhia"))
+```
+
+## Estatísticas Adicionais
+
+Apresentamos estatísticas gerais sobre os dados processados para validação
+e entendimento do conjunto de dados.
+
+```{r estatisticas}
+# --- ESTATÍSTICAS GERAIS ---
+# Query para obter métricas agregadas dos dados
+stats <- dbGetQuery(con, "
+  SELECT 
+    COUNT(*) as total_voos,                              -- Total de registros
+    COUNT(DISTINCT ORIGIN_AIRPORT) as aeroportos_origem, -- Aeroportos únicos (origem)
+    COUNT(DISTINCT DESTINATION_AIRPORT) as aeroportos_destino, -- Aeroportos únicos (destino)
+    COUNT(DISTINCT AIRLINE) as companhias,               -- Companhias únicas
+    ROUND(AVG(ARRIVAL_DELAY), 2) as atraso_medio_geral,  -- Atraso médio geral
+    MIN(ARRIVAL_DELAY) as min_atraso,                    -- Menor atraso (pode ser negativo)
+    MAX(ARRIVAL_DELAY) as max_atraso                     -- Maior atraso
+  FROM flights
+  WHERE ARRIVAL_DELAY IS NOT NULL                        -- Ignorar valores nulos
+")
+
+print("Estatísticas Gerais:")
+print(stats)
+```
+
+## Limpeza
+
+Desconectamos do banco de dados para liberar recursos e finalizar a sessão
+de forma adequada.
+
+```{r limpeza}
+# Desconectar do banco de dados SQLite
+# Importante: sempre desconectar ao finalizar operações
+dbDisconnect(con)
+print("Conexão encerrada!")
+```
+
