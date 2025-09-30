@@ -1,6 +1,6 @@
 ---
 title: "Análise do Banco de Dados UW-Madison - Disciplinas de Estatística"
-author: "Análise Automatizada"
+author: "Julia Soares"
 date: "`r format(Sys.time(), '%d de %B de %Y às %H:%M:%S')`"
 output: 
   html_document:
