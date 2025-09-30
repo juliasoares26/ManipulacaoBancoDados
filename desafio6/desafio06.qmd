@@ -1,7 +1,7 @@
 ---
 title: "Laboratório SQLite"
 subtitle: "Manipulação de Banco de Dados com R"
-author: "Seu Nome"
+author: "Julia Soares"
 date: today
 format: 
   html:
