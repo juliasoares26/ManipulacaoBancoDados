@@ -1,0 +1,254 @@
+---
+title: "Desafio 10 - Análise de Dados com Polars em R"
+format: html
+editor: visual
+---
+
+## Data e Hora de Compilação
+
+```{r}
+# Imprime a data e hora atual da compilação do documento
+print(paste("Arquivo compilado em:", Sys.time()))
+```
+
+## Instalação do Pacote Polars
+
+```{r}
+#| eval: false
+# Instala o pacote polars do repositório R-multiverse
+install.packages("polars", repos = "https://community.r-multiverse.org")
+```
+
+## Carregamento de Bibliotecas
+
+```{r}
+# Carrega a biblioteca polars para manipulação eficiente de dados
+library(polars)
+# Carrega a biblioteca readxl para leitura de arquivos Excel
+library(readxl)
+```
+
+## Leitura e Preparação dos Dados
+
+### Dados de Aeroportos
+
+```{r}
+# Lê o arquivo CSV de aeroportos e seleciona apenas as colunas relevantes
+aeroportos = pl$read_csv("airports.csv")$select(
+  c("IATA_CODE", "CITY", "STATE")  # Código IATA, cidade e estado
+)
+# Exibe as duas primeiras linhas do DataFrame
+aeroportos$head(2)
+```
+
+### Dados do Banco Mundial (WDI)
+
+```{r}
+# Lê a planilha "Country" do arquivo Excel do World Development Indicators
+wdi = read_excel("WDIEXCEL.xlsx", sheet = "Country") |>
+  as_polars_df()  # Converte para formato Polars DataFrame
+# Seleciona apenas as colunas de nome curto do país e região
+wdi = wdi$select(c("Short Name", "Region"))
+# Exibe as duas primeiras linhas
+wdi$head(2)
+```
+
+## Operações Básicas com Polars
+
+### Criação de DataFrame de Exemplo
+
+```{r}
+# Cria um DataFrame de exemplo com grupos e valores
+df = pl$DataFrame(
+  grupo = c("A", "A", "B", "B", "C"),     # Identificadores de grupo
+  valor1 = c(10, 15, 10, NA, 25),         # Primeira coluna de valores (com NA)
+  valor2 = c(5, NA, 20, 30, NA)           # Segunda coluna de valores (com NA)
+)
+# Exibe o DataFrame completo
+df
+```
+
+### Operações de Seleção e Agregação
+
+```{r}
+# Recria o DataFrame para demonstrar operações
+df = pl$DataFrame(
+  grupo = c("A", "A", "B", "B", "C"),
+  valor1 = c(10, 15, 10, NA, 25),
+  valor2 = c(5, NA, 20, 30, NA)
+)
+
+# Seleciona apenas a coluna valor1
+df$select("valor1")
+
+# Calcula a média de valor1 (incluindo NAs)
+df$select(pl$col("valor1")$mean())
+
+# Remove valores nulos antes de calcular a média
+df$select(pl$col("valor1")$drop_nulls()$mean())
+
+# Realiza múltiplas agregações simultaneamente
+df$select(
+  pl$col("valor1")$mean()$alias("media_v1"),  # Média de valor1 com alias
+  pl$col("valor2")$mean()                      # Média de valor2
+)
+
+# Agrupa por grupo e calcula estatísticas
+df$group_by("grupo")$agg(
+  pl$col("valor1")$mean()$alias("media_valor1"),  # Média de valor1 por grupo
+  pl$col("valor2")$min()$alias("min_valor2")      # Mínimo de valor2 por grupo
+)$sort("grupo")  # Ordena pelo nome do grupo
+```
+
+## Análise de Dados de Voos
+
+### Carregamento e Preparação dos Dados
+
+```{r}
+# Lê o arquivo CSV de voos e seleciona colunas específicas
+voos = pl$read_csv("flights.csv")$
+  select(c("AIRLINE", "ARRIVAL_DELAY", "DESTINATION_AIRPORT"))
+# Exibe as dimensões do DataFrame (linhas x colunas)
+voos$shape
+# Exibe as três primeiras linhas
+voos$head(3)
+```
+
+### Análise de Atrasos por Companhia Aérea e Destino
+
+```{r}
+# Análise complexa de atrasos de voos
+resultado = voos$
+  # Remove linhas com valores nulos nas colunas importantes
+  drop_nulls(c("AIRLINE", "DESTINATION_AIRPORT", "ARRIVAL_DELAY"))$
+  # Filtra apenas voos das companhias AA ou DL
+  filter(
+    pl$col("AIRLINE")$eq("AA") | pl$col("AIRLINE")$eq("DL")
+  )$
+  # Filtra apenas voos para aeroportos específicos (SEA, MIA ou BWI)
+  filter(
+    pl$col("DESTINATION_AIRPORT")$eq("SEA") | 
+    pl$col("DESTINATION_AIRPORT")$eq("MIA") | 
+    pl$col("DESTINATION_AIRPORT")$eq("BWI")
+  )$
+  # Agrupa por companhia aérea e aeroporto de destino
+  group_by(c("AIRLINE", "DESTINATION_AIRPORT"))$
+  # Calcula a proporção de voos com atraso maior que 30 minutos
+  agg(
+    (pl$col("ARRIVAL_DELAY") > 30)$mean()$alias("atraso_medio")
+  )$
+  # Ordena os resultados pela proporção de atraso
+  sort("atraso_medio")
+# Exibe o resultado
+resultado
+```
+
+## Operações de Join (Junção de Tabelas)
+
+### Criação de DataFrames de Exemplo
+
+```{r}
+library(polars)
+
+# Cria DataFrame de clientes
+clientes = pl$DataFrame(
+  cliente_id = c(1, 2, 3, 4),                      # IDs dos clientes
+  nome = c("Ana", "Bruno", "Clara", "Daniel")      # Nomes dos clientes
+)
+print(clientes)
+
+# Cria DataFrame de pedidos
+pedidos = pl$DataFrame(
+  pedido_id = c(101, 102, 103, 104, 105),          # IDs dos pedidos
+  cliente_id = c(1, 2, 3, 1, 5),                   # IDs dos clientes (note o 5 sem correspondência)
+  valor = c(100.50, 250.75, 75.00, 130.00, 79.00) # Valores dos pedidos
+)
+print(pedidos)
+```
+
+### Tipos de Joins
+
+```{r}
+# Inner Join: retorna apenas registros com correspondência em ambas as tabelas
+res_ij = clientes$join(pedidos, on = "cliente_id", how = "inner")
+print(res_ij)
+
+# Left Join: retorna todos os registros da tabela da esquerda (clientes)
+res_lj = clientes$join(pedidos, on = "cliente_id", how = "left")
+print(res_lj)
+
+# Right Join: retorna todos os registros da tabela da direita (pedidos)
+res_rj = clientes$join(pedidos, on = "cliente_id", how = "right")
+print(res_rj)
+
+# Full Outer Join: retorna todos os registros de ambas as tabelas
+res_oj = clientes$join(pedidos, on = "cliente_id", how = "full")
+print(res_oj)
+
+# Cross Join: produto cartesiano (todas as combinações possíveis)
+res_cj = clientes$join(pedidos, how = "cross")
+print(res_cj)
+```
+
+## Exercícios Práticos
+
+### Problema 1: Valor Médio das Compras por Cliente
+
+```{r}
+# P1: Qual é o valor médio das compras realizadas para cada cliente identificado?
+print(clientes)
+print(pedidos)
+
+# Agrupa por nome e cliente_id e calcula a média dos valores
+res = res_ij$group_by(c("nome", "cliente_id"))$agg(
+  pl$col("valor")$mean()  # Calcula o valor médio de compras por cliente
+)
+print(res)
+```
+
+### Problema 2: Quantidade de Compras Acima de $100
+
+```{r}
+# P2: Informe os nomes e a quantidade de compras com valor mínimo de $100.00 
+# realizadas por cada cliente.
+print(clientes)
+print(pedidos)
+
+# Cria uma coluna booleana indicando se o valor é maior que 100
+res = res_oj$with_columns(
+  (pl$col("valor") > 100)  # Verifica se cada valor é maior que 100
+)$group_by("nome")$agg(
+  pl$col("valor")$sum()  # Soma os valores True (convertidos para 1)
+)
+print(res)
+```
+
+### Joins com Múltiplas Chaves
+
+```{r}
+# Cria DataFrame de vendas
+vendas = pl$DataFrame(
+  id_venda = c(1, 2, 3),           # IDs das vendas
+  id_cl = c(1, 2, 1),              # IDs dos clientes
+  id_prod = c(101, 102, 103),      # IDs dos produtos
+  qtde = c(2, 1, 1)                # Quantidades vendidas
+)
+
+# Cria DataFrame de detalhes dos pedidos
+detalhes_pedidos = pl$DataFrame(
+  id_ped = c(201, 202, 203),       # IDs dos pedidos
+  cl_id = c(1, 2, 1),              # IDs dos clientes (nome diferente)
+  id_prod = c(101, 102, 104),      # IDs dos produtos
+  valor = c(50.00, 75.00, 100.00)  # Valores unitários
+)
+
+print(vendas)
+print(detalhes_pedidos)
+
+# Realiza join usando múltiplas chaves com nomes diferentes nas tabelas
+final = vendas$join(detalhes_pedidos,
+                    left_on = c("id_cl", "id_prod"),    # Chaves na tabela da esquerda
+                    right_on = c("cl_id", "id_prod"),   # Chaves na tabela da direita
+                    how = "inner")                       # Tipo de join
+print(final)
+```
